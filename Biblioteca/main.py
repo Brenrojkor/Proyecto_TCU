@@ -41,7 +41,10 @@ def main(page: ft.Page):
 )
 
 
+
     db = Database()
+
+    button_crear_libro = ft.ElevatedButton("Crear Libro")
 
     button_show_libros = ft.ElevatedButton("Mostrar Libros")
     
@@ -79,15 +82,25 @@ def main(page: ft.Page):
 
     button_show_libros.on_click = mostrar_libros
 
-    
+  
+
 
     container = ft.Container(
-        content=ft.Column(controls=[button_show_libros, libros_table], spacing=20),
-        padding=20,
-        bgcolor="white",
-        border_radius=8
-        
-    )
+    content=ft.Column(
+        controls=[
+            ft.Row(
+                controls=[button_crear_libro, button_show_libros],
+                spacing=20,
+                alignment=ft.MainAxisAlignment.CENTER
+            ),
+            libros_table
+        ],
+        spacing=20
+    ),
+    padding=20,
+    bgcolor=ft.Colors.WHITE,
+    border_radius=8
+)
 
  
 
