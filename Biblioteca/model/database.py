@@ -39,6 +39,28 @@ class Database:
         self.cursor.execute(f"EXEC sp_CrearCategoria {param_str}", values)
         self.conn.commit()
 
+    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria, activo=1):
+        """
+        Ejecuta el stored procedure sp_CrearLibro.
+        Solo maneja base de datos, sin UI.
+        """
+        param_str = "@titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?"
+        values = [
+            titulo,
+            isbn if isbn else None,
+            anio_publicacion if anio_publicacion else None,
+            edicion if edicion else None,
+            tipo,
+            descripcion if descripcion else None,
+            id_categoria,
+            activo
+        ]
+
+        self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
+        self.conn.commit()
+
+
+
 
 
 
