@@ -42,12 +42,19 @@ class Database:
         )
         self.conn.commit()
 
-    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria, activo=1):
+    def get_ubicaciones(self):
+        self.cursor.execute("EXEC dbo.sp_VerUbicaciones")
+        columnas = [col[0] for col in self.cursor.description]
+        return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+
+
+    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria, activo=1, autores_ids_csv=None,id_ubicacion=None):
         """
         Ejecuta el stored procedure sp_CrearLibro.
         Solo maneja base de datos, sin UI.
         """
-        param_str = "@titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?"
+        param_str = "@titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?, @autores_ids_csv = ?, @id_ubicacion = ?"
+       
         values = [
             titulo,
             isbn if isbn else None,
@@ -56,7 +63,9 @@ class Database:
             tipo,
             descripcion if descripcion else None,
             id_categoria,
-            activo
+            activo,
+            autores_ids_csv if autores_ids_csv else None,
+            id_ubicacion if id_ubicacion else None,
         ]
 
         self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
