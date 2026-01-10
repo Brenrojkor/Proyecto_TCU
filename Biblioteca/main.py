@@ -5,7 +5,7 @@ from view.components.navbar import NavBar
 def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.title = "Biblioteca - Flet"
-    page.bgcolor = ft.Colors.BLACK  
+    page.bgcolor = ft.Colors.WHITE  
 
     router = Router(page)
 
