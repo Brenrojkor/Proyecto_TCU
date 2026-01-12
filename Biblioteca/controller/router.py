@@ -1,8 +1,9 @@
 import flet as ft
 from view.pages.home import HomePage
 from view.pages.categorias import CategoriasPage
-from view.components.navbar import NavBar  # tu NavBar
+from view.components.navbar import NavBar  
 from view.pages.createlib import CrearLibroPage
+from view.pages.autores import AutoresPage
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -14,6 +15,7 @@ class Router:
             "/": HomePage,
             "/categorias": CategoriasPage,
              "/createlib": CrearLibroPage,
+             "/autores": AutoresPage,
         }
 
         self.navigate("/")  

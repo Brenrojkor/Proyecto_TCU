@@ -27,6 +27,11 @@ class Database:
         self.cursor.execute("EXEC sp_VerCategorias")
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+      
+    def get_autores(self):
+        self.cursor.execute("EXEC sp_VerAutores")
+        columnas = [col[0] for col in self.cursor.description]
+        return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
 
     def set_categorias(self, nombre, descripcion):
         self.cursor.execute(
@@ -34,11 +39,25 @@ class Database:
             (nombre, descripcion if descripcion else None)
         )
         self.conn.commit()
+    
+    def set_autores(self, nombre, apellido, nacionalidad):
+        self.cursor.execute(
+            "EXEC sp_CrearAutor @nombre = ?, @apellido = ?, @nacionalidad = ?",
+            (nombre, apellido if apellido else None, nacionalidad if nacionalidad else None)
+        )
+        self.conn.commit()
 
     def update_categoria(self, id_categoria, nombre, descripcion):
         self.cursor.execute(
             "EXEC sp_EditarCategoria @id_categoria = ?, @nombre = ?, @descripcion = ?",
             (id_categoria, nombre, descripcion if descripcion else None)
+        )
+        self.conn.commit()
+        
+    def update_autor(self, id_autor, nombre, apellido, nacionalidad):
+        self.cursor.execute(
+            "EXEC sp_EditarAutor @id_autor = ?, @nombre = ?, @apellido = ?, @nacionalidad = ?",
+            (id_autor, nombre, apellido if apellido else None, nacionalidad if nacionalidad else None)
         )
         self.conn.commit()
 
