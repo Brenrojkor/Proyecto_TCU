@@ -47,14 +47,14 @@ class Database:
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
 
-
-    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria, activo=1, autores_ids_csv=None,id_ubicacion=None):
+    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria,
+                   activo=1, autores_ids_csv=None, id_ubicacion=None):
         """
         Ejecuta el stored procedure sp_CrearLibro.
         Solo maneja base de datos, sin UI.
         """
         param_str = "@titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?, @autores_ids_csv = ?, @id_ubicacion = ?"
-       
+
         values = [
             titulo,
             isbn if isbn else None,
@@ -71,8 +71,45 @@ class Database:
         self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
         self.conn.commit()
 
+    # =========================
+    #   PDFs (DIGITAL)
+    # =========================
+    def upsert_libro_pdf(self, id_libro: int, nombre_archivo: str, contenido: bytes):
+        cur = self.conn.cursor()
+        cur.execute(
+            "EXEC dbo.sp_UpsertLibroPDF @id_libro = ?, @nombre_archivo = ?, @contenido = ?, @content_type = ?",
+            (id_libro, nombre_archivo, pyodbc.Binary(contenido), "application/pdf"),
+        )
 
+        # ✅ Limpia resultsets pendientes (evita que el siguiente SP devuelva mal)
+        try:
+            while cur.nextset():
+                pass
+        except Exception:
+            pass
 
+        self.conn.commit()
+        cur.close()
 
+    def get_libro_pdf(self, id_libro: int):
+        cur = self.conn.cursor()
+        cur.execute("EXEC dbo.sp_GetLibroPDF @id_libro = ?", (id_libro,))
+        row = cur.fetchone()
+        cur.close()
 
+        if not row:
+            return None
 
+        return {
+            "nombre_archivo": row[0],
+            "contenido": row[1],
+            "content_type": row[2],
+            "fecha_subida": row[3],
+        }
+
+    def has_libro_pdf(self, id_libro: int) -> bool:
+        cur = self.conn.cursor()
+        cur.execute("EXEC dbo.sp_HasLibroPDF @id_libro = ?", (id_libro,))
+        row = cur.fetchone()
+        cur.close()
+        return bool(row[0]) if row else False

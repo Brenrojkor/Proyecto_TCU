@@ -40,7 +40,7 @@ class CrearLibroPage(ft.Column):
         )
 
         # ---- Categorías (FK: id_categoria) ----
-        cats = self.db.get_categorias()  # debe traer id_categoria y nombre
+        cats = self.db.get_categorias()
         self.categoria_dd = ft.Dropdown(
             label="Categoría *",
             width=320,
@@ -50,8 +50,8 @@ class CrearLibroPage(ft.Column):
             ]
         )
 
-        # ---- Ubicaciones (FK: id_ubicacion en Ejemplar) ----
-        ubis = self.db.get_ubicaciones()  # debe traer id_ubicacion, sala, pasillo, estanteria, nivel, descripcion
+        # ---- Ubicaciones ----
+        ubis = self.db.get_ubicaciones()
 
         def ubicacion_text(u: dict) -> str:
             sala = u.get("sala", "")
@@ -75,7 +75,7 @@ class CrearLibroPage(ft.Column):
             ]
         )
 
-        # ---- Autores (IDs separados por coma) ----
+        # ---- Autores ----
         self.autores_ids_input = ft.TextField(
             label="Autores (IDs separados por coma) ej: 1,3,5",
             width=320
