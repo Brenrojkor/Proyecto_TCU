@@ -117,7 +117,7 @@ $owner.Opacity = 0
 $owner.Show()
 
 $dlg = New-Object System.Windows.Forms.OpenFileDialog
-$dlg.Filter = "Archivos PDF (*.pdf)|*.pdf"
+$dlg.Filter = "Archivos PDF (.pdf)|.pdf"
 $dlg.Multiselect = $false
 $dlg.Title = "Selecciona un archivo PDF"
 
