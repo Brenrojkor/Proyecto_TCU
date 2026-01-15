@@ -61,30 +61,31 @@ def NavBar(page, navigate):
 
 
     return ft.Container(
-        bgcolor="#0b495c",
-        height=64,
-        padding=ft.padding.symmetric(horizontal=24),
-        content=ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            controls=[
-                ft.Text(
-                    "Biblioteca Pública De Tibás",
-                    size=22,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.WHITE,
-                ),
-                 ft.Row(
-                    spacing=20,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        nav_item("Inicio", "/"),
-                        libros_menu,                
-                        nav_item("Dashboard", "/dashboard"),
-                        nav_item("Usuarios", "/usuarios"),
+    bgcolor="#0b495c",
+    height=64,
+    padding=ft.padding.symmetric(horizontal=24),
+    content=ft.Row(
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=[
+            ft.Text(
+                "Biblioteca Pública De Tibás",
+                size=22,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.WHITE,
+            ),
+            ft.Row(
+                spacing=20,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    nav_item("Inicio", "/"),
+                    libros_menu,
+                    nav_item("Dashboard", "/dashboard"),
+                    nav_item("Usuarios", "/usuarios"),
 
-                      
-                        ft.CircleAvatar(
+                    # 👇 Avatar clickeable
+                    ft.Container(
+                        content=ft.CircleAvatar(
                             content=ft.Icon(
                                 ft.Icons.PERSON,
                                 color=ft.Colors.WHITE,
@@ -92,8 +93,10 @@ def NavBar(page, navigate):
                             bgcolor="#1B6F7A",
                             radius=18,
                         ),
-                    ],
-                ),
-            ],
-        ),
-    )
+                        on_click=lambda e: navigate("/login"),
+                    ),
+                ],
+            ),
+        ],
+    ),
+)
