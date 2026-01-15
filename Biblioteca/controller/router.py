@@ -6,6 +6,7 @@ from view.pages.createlib import CrearLibroPage
 from view.pages.autores import AutoresPage
 from view.pages.login import LoginPage
 from view.pages.registro import RegistroPage
+from view.pages.usuarios import UsuariosPage
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -20,6 +21,7 @@ class Router:
              "/autores": AutoresPage,
              "/login": LoginPage,
              "/registro": RegistroPage,
+             "/usuarios": UsuariosPage,
              
         }
 
