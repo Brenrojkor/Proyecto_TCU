@@ -4,6 +4,7 @@ from view.pages.categorias import CategoriasPage
 from view.components.navbar import NavBar  
 from view.pages.createlib import CrearLibroPage
 from view.pages.autores import AutoresPage
+from view.pages.ubicacionView import UbicacionView
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -16,6 +17,7 @@ class Router:
             "/categorias": CategoriasPage,
              "/createlib": CrearLibroPage,
              "/autores": AutoresPage,
+             "/ubicacion": UbicacionView,
         }
 
         self.navigate("/")  

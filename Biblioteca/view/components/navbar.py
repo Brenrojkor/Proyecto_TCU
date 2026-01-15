@@ -39,6 +39,17 @@ def NavBar(navigate):
                 tooltip="Autores",
                 on_click=lambda _: navigate("/autores")
             ),
+
+            # ✅ ÚNICO AGREGADO: UBICACIÓN
+            ft.TextButton(
+                content=ft.Row(
+                    controls=[ft.Icon(ft.Icons.LOCATION_ON), ft.Text("Ubicación")],
+                    spacing=5
+                ),
+                tooltip="Ubicación",
+                on_click=lambda _: navigate("/ubicacion")
+            ),
+
             ft.TextButton(
                 content=ft.Row(
                     controls=[ft.Icon(ft.Icons.LOGOUT), ft.Text("Salir")],

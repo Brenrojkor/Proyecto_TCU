@@ -65,6 +65,15 @@ class Database:
         self.cursor.execute("EXEC dbo.sp_VerUbicaciones")
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+    
+
+    def crear_ubicacion(self, sala, pasillo=None, estanteria=None, nivel=None, descripcion=None):
+        self.cursor.execute(
+        "EXEC dbo.sp_CrearUbicacion @sala=?, @pasillo=?, @estanteria=?, @nivel=?, @descripcion=?",
+        (sala, pasillo, estanteria, nivel, descripcion)
+    )
+        self.conn.commit()
+
 
     def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria,
                    activo=1, autores_ids_csv=None, id_ubicacion=None):
