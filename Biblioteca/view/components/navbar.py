@@ -61,7 +61,7 @@ def NavBar(page, navigate):
 
 
     return ft.Container(
-        bgcolor="#0F4C5C",
+        bgcolor="#0b495c",
         height=64,
         padding=ft.padding.symmetric(horizontal=24),
         content=ft.Row(
