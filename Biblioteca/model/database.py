@@ -32,6 +32,11 @@ class Database:
         self.cursor.execute("EXEC sp_VerAutores")
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+    
+    def get_usuarios(self):
+        self.cursor.execute("EXEC sp_VerUsuarios")
+        columnas = [col[0] for col in self.cursor.description]
+        return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
 
     def set_categorias(self, nombre, descripcion):
         self.cursor.execute(

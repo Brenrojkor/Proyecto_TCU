@@ -5,11 +5,14 @@ from view.components.navbar import NavBar
 from view.pages.createlib import CrearLibroPage
 from view.pages.autores import AutoresPage
 from view.pages.ubicacionView import UbicacionView
+from view.pages.login import LoginPage
+from view.pages.registro import RegistroPage
+from view.pages.usuarios import UsuariosPage
 
 class Router:
     def __init__(self, page: ft.Page):
         self.page = page
-        self.page.appbar = NavBar(self.navigate)
+        self.container = None
 
         #Rutas
         self.routes = {
@@ -18,14 +21,27 @@ class Router:
              "/createlib": CrearLibroPage,
              "/autores": AutoresPage,
              "/ubicacion": UbicacionView,
+             "/login": LoginPage,
+             "/registro": RegistroPage,
+             "/usuarios": UsuariosPage,
+             
         }
 
-        self.navigate("/")  
+    def set_container(self, container: ft.Column):
+            self.container = container
 
     def navigate(self, route: str):
-        self.page.controls.clear()
-        self.page.add(self.routes.get(route, self.not_found)(self.navigate, self.page))
+        self.container.controls.clear()
+
+        view = self.routes.get(route, self.not_found)
+        self.container.controls.append(view(self.navigate, self.page))
+
         self.page.update()
 
     def not_found(self, navigate, page):
-        return ft.Column([ft.Text("404 - Página no encontrada")])
+         return ft.Column(
+            expand=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+            controls=[ft.Text("404 - Página no encontrada")]
+        )
+        

@@ -6,56 +6,140 @@ class CategoriasPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
         self._page = page
+        self.navigate = navigate
         self.db = Database()
         self.dialog = None
         self.categoria_editando = None
+        self._categorias_cache = []
 
-        # Botón crear
+
         self.btn_crear = ft.ElevatedButton(
-            "Nueva categoría",
-            icon=ft.Icons.ADD,
-            on_click=self.abrir_dialogo_crear
+            content=ft.Row(
+                [ft.Icon(ft.Icons.ADD), ft.Text("Crear categoría")],
+                spacing=8,
+            ),
+            on_click=self.abrir_dialogo_crear,
         )
 
-        # Tabla
-        self.categorias_table = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("ID")),
-                ft.DataColumn(ft.Text("Nombre")),
-                ft.DataColumn(ft.Text("Descripción")),
-                ft.DataColumn(ft.Text("Acciones")),
-            ],
-            rows=[]
+
+        self.search_input = ft.TextField(
+            hint_text="Buscar autor...",
+            prefix_icon=ft.Icons.SEARCH,
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
+            on_change=lambda e: self.mostrar_autores(),
         )
+
+     
+
+        self.categorias_table = ft.DataTable(
+            bgcolor=ft.Colors.WHITE,
+            border=ft.border.all(1, "#d0d7de"),
+            border_radius=8,
+            width=990,
+            heading_row_color="#e3f2fd",
+            heading_row_height=48,
+            data_row_min_height=52,
+            data_row_max_height=52,
+            column_spacing=80,   
+            horizontal_margin=24,
+            columns=[
+                ft.DataColumn(
+                    ft.Text("Nombre", weight=ft.FontWeight.BOLD, color="#0d47a1")
+                ),
+                ft.DataColumn(
+                    ft.Text("Descripción", weight=ft.FontWeight.BOLD, color="#0d47a1")
+                ),
+                ft.DataColumn(
+                    ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#0d47a1")
+                ),
+            ],
+            rows=[],
+        )
+
+        # =========================
+        # HEADER
+        # =========================
+
+        header = ft.Container(
+            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            bgcolor="#aedff4",
+            border_radius=8,
+            content=ft.Row(
+                [
+                    ft.Text(
+                        "Categorías Registradas",
+                        size=22,
+                        weight=ft.FontWeight.BOLD,
+                        color="#38638f",
+                    ),
+                    self.btn_crear,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+        )
+
 
         container = ft.Container(
             content=ft.Column(
                 [
+                    header,
                     ft.Row(
-                        [self.btn_crear],
-                        alignment=ft.MainAxisAlignment.END
+                        [self.search_input],
+                        alignment=ft.MainAxisAlignment.END,
                     ),
-                    self.categorias_table
+                    ft.Row(
+                        [self.categorias_table],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
                 ],
-                spacing=20
+                spacing=20,
             ),
             padding=20,
             bgcolor=ft.Colors.WHITE,
             border_radius=8,
-            width=750
+            expand=True,  
         )
 
         self.controls = [
             ft.Row(
                 [container],
                 alignment=ft.MainAxisAlignment.CENTER,
-                expand=True
+                expand=True,
             )
         ]
 
         self.mostrar_categorias()
 
-    # ─────────────── DIÁLOGOS ───────────────
+
+    def action_button(self, icon, bgcolor, tooltip, on_click=None):
+        return ft.Container(
+            width=36,
+            height=36,
+            bgcolor=bgcolor,
+            border_radius=6,
+            alignment=ft.Alignment.CENTER,
+            tooltip=tooltip,
+            on_click=on_click,
+            content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
+        )
+
+
+    def on_search_change(self, e):
+        texto = (e.control.value or "").lower().strip()
+        self.categorias_table.rows.clear()
+
+        for cat in self._categorias_cache:
+            if not texto or texto in cat["nombre"].lower():
+                self.categorias_table.rows.append(self._build_row(cat))
+
+        self._page.update()
+
 
     def abrir_dialogo_crear(self, e):
         self.categoria_editando = None
@@ -70,7 +154,7 @@ class CategoriasPage(ft.Column):
             label="Nombre",
             value=categoria["nombre"] if categoria else "",
             autofocus=True,
-            width=320
+            width=320,
         )
 
         self.descripcion_input = ft.TextField(
@@ -79,7 +163,7 @@ class CategoriasPage(ft.Column):
             multiline=True,
             min_lines=2,
             max_lines=3,
-            width=320
+            width=320,
         )
 
         self.dialog = ft.AlertDialog(
@@ -88,17 +172,17 @@ class CategoriasPage(ft.Column):
             content=ft.Column(
                 [self.nombre_input, self.descripcion_input],
                 spacing=12,
-                tight=True
+                tight=True,
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self.cerrar_dialogo),
                 ft.ElevatedButton(
                     "Guardar",
                     icon=ft.Icons.CHECK,
-                    on_click=self.guardar_categoria
-                )
+                    on_click=self.guardar_categoria,
+                ),
             ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
         self._page.overlay.clear()
@@ -111,7 +195,6 @@ class CategoriasPage(ft.Column):
             self.dialog.open = False
             self._page.update()
 
-    # ─────────────── LÓGICA ───────────────
 
     def guardar_categoria(self, e):
         nombre = self.nombre_input.value.strip()
@@ -121,42 +204,24 @@ class CategoriasPage(ft.Column):
             self.mostrar_error("El nombre es obligatorio.")
             return
 
-        try:
-            if self.categoria_editando:
-                self.db.update_categoria(
-                    self.categoria_editando["id_categoria"],
-                    nombre,
-                    descripcion
-                )
-                mensaje = "Categoría actualizada correctamente"
-            else:
-                self.db.set_categorias(nombre, descripcion)
-                mensaje = "Categoría creada correctamente"
-
-            self.cerrar_dialogo()
-            self.mostrar_categorias()
-
-            self._page.snack_bar = ft.SnackBar(
-                content=ft.Text(mensaje),
-                bgcolor=ft.Colors.GREEN_500
+        if self.categoria_editando:
+            self.db.update_categoria(
+                self.categoria_editando["id_categoria"],
+                nombre,
+                descripcion,
             )
-            self._page.snack_bar.open = True
-            self._page.update()
+        else:
+            self.db.set_categorias(nombre, descripcion)
 
-        except Exception as ex:
-            self.mostrar_error(str(ex))
+        self.cerrar_dialogo()
+        self.mostrar_categorias()
 
     def mostrar_error(self, mensaje):
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text("Error"),
             content=ft.Text(mensaje),
-            actions=[
-                ft.TextButton(
-                    "Cerrar",
-                    on_click=lambda e: self._cerrar_error(dlg)
-                )
-            ]
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: self._cerrar_error(dlg))],
         )
 
         self._page.overlay.append(dlg)
@@ -167,25 +232,39 @@ class CategoriasPage(ft.Column):
         dlg.open = False
         self._page.update()
 
+    def _build_row(self, cat):
+        return ft.DataRow(
+            cells=[
+                ft.DataCell(ft.Text(cat["nombre"], text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(cat.get("descripcion", ""), text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(
+                    ft.Row(
+                        [
+                            self.action_button(
+                                ft.Icons.EDIT,
+                                ft.Colors.ORANGE,
+                                "Editar",
+                                lambda e, c=cat: self.abrir_dialogo_editar(c),
+                            ),
+                            self.action_button(
+                                ft.Icons.BLOCK,
+                                ft.Colors.RED,
+                                "Desactivar",
+                            ),
+                        ],
+                        spacing=10,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    )
+                ),
+            ]
+        )
+
+
     def mostrar_categorias(self):
         self.categorias_table.rows.clear()
+        self._categorias_cache = self.db.get_categorias()
 
-        for cat in self.db.get_categorias():
-            self.categorias_table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(str(cat["id_categoria"]))),
-                        ft.DataCell(ft.Text(cat["nombre"])),
-                        ft.DataCell(ft.Text(cat.get("descripcion", ""))),
-                        ft.DataCell(
-                            ft.IconButton(
-                                icon=ft.Icons.EDIT,
-                                tooltip="Editar",
-                                on_click=lambda e, c=cat: self.abrir_dialogo_editar(c)
-                            )
-                        )
-                    ]
-                )
-            )
+        for cat in self._categorias_cache:
+            self.categorias_table.rows.append(self._build_row(cat))
 
         self._page.update()

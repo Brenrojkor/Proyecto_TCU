@@ -117,7 +117,7 @@ $owner.Opacity = 0
 $owner.Show()
 
 $dlg = New-Object System.Windows.Forms.OpenFileDialog
-$dlg.Filter = "Archivos PDF (*.pdf)|*.pdf"
+$dlg.Filter = "Archivos PDF (.pdf)|.pdf"
 $dlg.Multiselect = $false
 $dlg.Title = "Selecciona un archivo PDF"
 
@@ -182,140 +182,188 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 snack(f"No se pudo abrir selector (Tkinter): {ex}")
                 return None
 
+
+
         # =========================
         # UI
         # =========================
-        button_crear_libro = ft.ElevatedButton(
-            content=ft.Row([ft.Icon(ft.Icons.ADD), ft.Text("Crear libro")], spacing=8),
-            on_click=lambda e: navigate("/createlib")
-        )
 
-        button_show_libros = ft.ElevatedButton("Mostrar Libros")
+        button_crear_libro = ft.ElevatedButton(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.ADD),
+                    ft.Text("Crear libro"),
+                ],
+                spacing=8,
+            ),
+            on_click=lambda e: navigate("/createlib"),
+        )
 
         search_input = ft.TextField(
-            hint_text="Buscar",
+            hint_text="Buscar por título...",
             prefix_icon=ft.Icons.SEARCH,
-            width=300,
-            dense=True
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
         )
 
+
         libros_table = ft.DataTable(
+            bgcolor=ft.Colors.WHITE,
+            border=ft.border.all(1, "#d0d7de"),
+            border_radius=8,
+            heading_row_color="#e3f2fd",
+            heading_row_height=48,
+            data_row_min_height=52,
+            data_row_max_height=52,
+            column_spacing=50,
+            horizontal_margin=16,
             columns=[
-                ft.DataColumn(ft.Text("ID")),
-                ft.DataColumn(ft.Text("Título")),
-                ft.DataColumn(ft.Text("ISBN")),
-                ft.DataColumn(ft.Text("Tipo")),
-                ft.DataColumn(ft.Text("Descripción")),
-                ft.DataColumn(ft.Text("Categoría")),
-                ft.DataColumn(ft.Text("Autores")),
-                ft.DataColumn(ft.Text("Ubicación")),
-                ft.DataColumn(ft.Text("Documentos")),
+                ft.DataColumn(label=ft.Text("Título", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Categoría", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("ISBN", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Tipo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Activo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Documentos", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Acciones", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
             ],
-            rows=[]
+            rows=[],
         )
 
         self._libros_cache = []
 
         # =========================
-        # Subir PDF + DEBUG EN TERMINAL
+        # Subir PDF
         # =========================
+
         def subir_pdf_para_libro(id_libro: int):
-            print(f"\n[DEBUG] ===== SUBIR PDF =====")
-            print(f"[DEBUG] id_libro: {id_libro}")
-
             path = pick_pdf_windows()
-            print(f"[DEBUG] path seleccionado: {path}")
-
             if not path:
-                print("[DEBUG] Cancelado por el usuario.")
                 return
 
             if not path.lower().endswith(".pdf"):
                 snack("Solo se permiten archivos PDF.")
                 return
 
-            try:
-                with open(path, "rb") as f:
-                    pdf_bytes = f.read()
+            with open(path, "rb") as f:
+                pdf_bytes = f.read()
 
-                print(f"[DEBUG] bytes leídos: {len(pdf_bytes)}")
+            self._db.upsert_libro_pdf(
+                id_libro=id_libro,
+                nombre_archivo=safe_filename(os.path.basename(path)),
+                contenido=pdf_bytes,
+            )
 
-                if not pdf_bytes:
-                    snack("El archivo seleccionado está vacío (0 bytes).")
-                    return
-
-                snack(f"Seleccionado: {os.path.basename(path)} ({len(pdf_bytes)} bytes)")
-
-                self._db.upsert_libro_pdf(
-                    id_libro=id_libro,
-                    nombre_archivo=safe_filename(os.path.basename(path)),
-                    contenido=pdf_bytes
-                )
-
-                print("[DEBUG] upsert_libro_pdf ejecutado OK")
-                snack("PDF guardado en la base de datos ✅")
-
-            except Exception as ex:
-                print("[ERROR] subir_pdf_para_libro:", ex)
-                snack(f"Error subiendo PDF: {ex}")
+            snack("PDF guardado correctamente ✅")
 
         # =========================
-        # Construir filas (SIN has_libro_pdf)
+        # Construir filas
         # =========================
+
         def build_row(libro: dict) -> ft.DataRow:
             id_libro = int(libro["id_libro"])
             tipo = (libro.get("tipo") or "").strip().upper()
 
+            # ---- Documentos ----
             if tipo == "DIGITAL":
                 btn_cargar = ft.ElevatedButton(
-                    "Cargar PDF",
-                    icon=ft.Icons.UPLOAD_FILE,
-                    on_click=lambda e, i=id_libro: subir_pdf_para_libro(i)
+                    content=ft.Row(
+                        [ft.Icon(ft.Icons.UPLOAD_FILE), ft.Text("Cargar PDF")],
+                        spacing=6,
+                    ),
+                    on_click=lambda e, i=id_libro: subir_pdf_para_libro(i),
                 )
 
                 btn_ver = ft.ElevatedButton(
-                    "Ver PDF",
-                    icon=ft.Icons.PICTURE_AS_PDF,
-                    disabled=False,
-                    on_click=lambda e, i=id_libro: ver_pdf(i)
+                    content=ft.Row(
+                        [ft.Icon(ft.Icons.PICTURE_AS_PDF), ft.Text("Ver PDF")],
+                        spacing=6,
+                    ),
+                    on_click=lambda e, i=id_libro: ver_pdf(i),
                 )
 
                 documentos = ft.DataCell(
-                    ft.Container(
-                        width=260,
-                        content=ft.Row([btn_cargar, btn_ver], spacing=8, wrap=False)
+                    ft.Row(
+                        [btn_cargar, btn_ver],
+                        spacing=8,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        expand=True,
                     )
                 )
             else:
-                documentos = ft.DataCell(ft.Container(width=260, content=ft.Text("No aplica")))
+                documentos = ft.DataCell(
+                    ft.Row(
+                        [ft.Text("No aplica", color=ft.Colors.GREY)],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        expand=True,
+                    )
+                )
 
-            return ft.DataRow(cells=[
-                ft.DataCell(ft.Text(str(libro.get("id_libro", "")))),
-                ft.DataCell(ft.Text(libro.get("titulo", ""))),
-                ft.DataCell(ft.Text(libro.get("isbn", ""))),
-                ft.DataCell(ft.Text(libro.get("tipo", ""))),
-                ft.DataCell(ft.Text(libro.get("descripcion", ""))),
-                ft.DataCell(ft.Text(libro.get("categoria", ""))),
-                ft.DataCell(ft.Text(libro.get("autores", ""))),
-                ft.DataCell(ft.Text(libro.get("ubicacion", ""))),
-                documentos,
-            ])
+            def action_button(icon, bgcolor, tooltip, on_click=None):
+                return ft.Container(
+                    width=36,
+                    height=36,
+                    bgcolor=bgcolor,
+                    border_radius=6,
+                    alignment=ft.Alignment.CENTER,
+                    tooltip=tooltip,
+                    on_click=on_click,
+                    content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
+                )
+
+            acciones = ft.DataCell(
+                ft.Row(
+                    [
+                        action_button(
+                            ft.Icons.VISIBILITY,
+                            ft.Colors.BLUE,
+                            "Detalles",
+                            lambda e, i=id_libro: navigate(f"/libro/{i}"),
+                        ),
+                        action_button(
+                            ft.Icons.EDIT,
+                            ft.Colors.ORANGE,
+                            "Modificar",
+                            lambda e, i=id_libro: navigate(f"/editlib/{i}"),
+                        ),
+                        action_button(
+                            ft.Icons.BLOCK,
+                            ft.Colors.RED,
+                            "Desactivar",
+                        ),
+                    ],
+                    spacing=10,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    expand=True,
+                )
+            )
+
+            return ft.DataRow(
+                cells=[
+                    ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(libro.get("tipo", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text("Sí" if libro.get("activo") else "No", text_align=ft.TextAlign.CENTER)),
+                    documentos,
+                    acciones,
+                ]
+            )
 
         # =========================
-        # Filtro (usa cache)
+        # Filtro
         # =========================
+
         def filtrar_libros(texto):
             libros_table.rows.clear()
             q = (texto or "").strip().lower()
 
-            if not q:
-                for libro in self._libros_cache:
-                    libros_table.rows.append(build_row(libro))
-                self._page.update()
-                return
-
             for libro in self._libros_cache:
-                if q in (libro.get("titulo") or "").lower():
+                if not q or q in (libro.get("titulo") or "").lower():
                     libros_table.rows.append(build_row(libro))
 
             self._page.update()
@@ -328,45 +376,53 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         search_input.on_change = on_search_change
 
         # =========================
-        # Mostrar libros (1 consulta)
+        # Mostrar libros
         # =========================
-        def mostrar_libros(e):
+
+        def mostrar_libros(e=None):
             libros_table.rows.clear()
             self._libros_cache = self._db.get_libros()
 
             for libro in self._libros_cache:
                 libros_table.rows.append(build_row(libro))
 
-            if search_input.value:
-                filtrar_libros(search_input.value)
-
             self._page.update()
 
-        button_show_libros.on_click = mostrar_libros
 
-        # =========================
-        # Layout + Scroll
-        # =========================
-        scrollable_column = ft.Column([libros_table], scroll=ft.ScrollMode.AUTO)
-        scrollable_row = ft.Row([scrollable_column], scroll=ft.ScrollMode.ALWAYS, expand=True)
+        header = ft.Container(
+            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            bgcolor="#aedff4",
+            border_radius=8,
+            content=ft.Row(
+                [
+                    ft.Text(
+                        "Libros Registrados",
+                        size=22,
+                        weight=ft.FontWeight.BOLD,
+                        color="#38638f",
+                    ),
+                    button_crear_libro,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+        )
+
 
         container = ft.Container(
             content=ft.Column(
                 [
-                    ft.Row(
-                        [button_crear_libro, button_show_libros, search_input],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=20
-                    ),
-                    scrollable_row
+                    header,
+                    ft.Row([search_input], alignment=ft.MainAxisAlignment.END),
+                    ft.Row([libros_table], alignment=ft.MainAxisAlignment.CENTER),
                 ],
-                spacing=20
+                spacing=20,
             ),
             padding=20,
             bgcolor=ft.Colors.WHITE,
-            border_radius=8
+            border_radius=8,
+            expand=True,
         )
 
-        self.controls = [
-            ft.Row([container], alignment=ft.MainAxisAlignment.CENTER, expand=True)
-        ]
+        self.controls = [ft.Row([container], expand=True)]
+
+        mostrar_libros()
