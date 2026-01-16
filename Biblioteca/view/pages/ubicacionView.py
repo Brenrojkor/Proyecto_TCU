@@ -9,37 +9,90 @@ class UbicacionView(ft.Column):
         self.navigate = navigate
         self.db = Database()
 
-        # ---- Inputs (dbo.Ubicacion) ----
-        self.sala_input = ft.TextField(label="Sala *", width=320, autofocus=True)
+        # =========================
+        # Estilos (igual HomePage)
+        # =========================
+        INPUT_STYLE = dict(
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
+        )
 
-        self.pasillo_input = ft.TextField(label="Pasillo", width=320)
-        self.estanteria_input = ft.TextField(label="Estantería", width=320)
-        self.nivel_input = ft.TextField(label="Nivel", width=320)
+        # =========================
+        # Inputs
+        # =========================
+        self.sala_input = ft.TextField(
+            label="Sala *",
+            autofocus=True,
+            **INPUT_STYLE
+        )
+
+        self.pasillo_input = ft.TextField(
+            label="Pasillo",
+            **INPUT_STYLE
+        )
+
+        self.estanteria_input = ft.TextField(
+            label="Estantería",
+            **INPUT_STYLE
+        )
+
+        self.nivel_input = ft.TextField(
+            label="Nivel",
+            **INPUT_STYLE
+        )
 
         self.descripcion_input = ft.TextField(
             label="Descripción",
             multiline=True,
             min_lines=2,
             max_lines=3,
+            max_length=255,
             width=320,
-            max_length=255
+            bgcolor="#f5f7fa",
+            border_radius=8,
         )
 
-        # ---- Botones ----
+        # =========================
+        # Botones
+        # =========================
         self.btn_cancelar = ft.TextButton(
-            content=ft.Text("Cancelar"),
-            on_click=lambda e: self.navigate("/")
+            "Cancelar",
+            on_click=lambda e: navigate("/"),
         )
 
         self.btn_crear = ft.ElevatedButton(
             content=ft.Row(
-                controls=[ft.Icon(ft.Icons.CHECK), ft.Text("Guardar ubicación")],
-                spacing=8
+                [ft.Icon(ft.Icons.SAVE), ft.Text("Guardar ubicación")],
+                spacing=6,
             ),
-            on_click=self.crear_ubicacion
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            on_click=self.crear_ubicacion,
         )
 
-        # ---- Form ----
+        # =========================
+        # Header (igual HomePage)
+        # =========================
+        header = ft.Container(
+            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            bgcolor="#aedff4",
+            border_radius=8,
+            content=ft.Text(
+                "Crear nueva ubicación",
+                size=22,
+                weight=ft.FontWeight.BOLD,
+                color="#38638f",
+            ),
+        )
+
+        # =========================
+        # Formulario
+        # =========================
         form = ft.Column(
             controls=[
                 self.sala_input,
@@ -48,26 +101,31 @@ class UbicacionView(ft.Column):
                 self.nivel_input,
                 self.descripcion_input,
                 ft.Row(
-                    controls=[self.btn_cancelar, self.btn_crear],
-                    alignment=ft.MainAxisAlignment.END
-                )
+                    [self.btn_cancelar, self.btn_crear],
+                    alignment=ft.MainAxisAlignment.END,
+                ),
             ],
-            spacing=12,
-            tight=True
+            spacing=14,
         )
 
         container = ft.Container(
-            content=form,
-            padding=20,
+            content=ft.Column(
+                [header, form],
+                spacing=20,
+            ),
+            padding=24,
             bgcolor=ft.Colors.WHITE,
             border_radius=8,
-            width=650
+            width=700,
         )
 
         self.controls = [
             ft.Row([container], alignment=ft.MainAxisAlignment.CENTER, expand=True)
         ]
 
+    # =========================
+    # Lógica (SIN CAMBIOS)
+    # =========================
     def crear_ubicacion(self, e):
         try:
             sala = (self.sala_input.value or "").strip()
@@ -76,7 +134,6 @@ class UbicacionView(ft.Column):
             nivel = (self.nivel_input.value or "").strip()
             descripcion = (self.descripcion_input.value or "").strip()
 
-            # Validaciones
             if not sala:
                 self.mostrar_error("La sala es obligatoria.")
                 return
@@ -102,12 +159,12 @@ class UbicacionView(ft.Column):
                 pasillo=pasillo if pasillo else None,
                 estanteria=estanteria if estanteria else None,
                 nivel=nivel if nivel else None,
-                descripcion=descripcion if descripcion else None
+                descripcion=descripcion if descripcion else None,
             )
 
             self._page.snack_bar = ft.SnackBar(
                 content=ft.Text("✅ Ubicación guardada correctamente"),
-                bgcolor=ft.Colors.GREEN_500
+                bgcolor=ft.Colors.GREEN_500,
             )
             self._page.snack_bar.open = True
             self._page.update()

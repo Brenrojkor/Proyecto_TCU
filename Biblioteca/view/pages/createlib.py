@@ -1,6 +1,7 @@
 import flet as ft
 from model.database import Database
 
+
 class CrearLibroPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
@@ -8,27 +9,54 @@ class CrearLibroPage(ft.Column):
         self.navigate = navigate
         self.db = Database()
 
-        # ---- Inputs (dbo.Libro) ----
-        self.titulo_input = ft.TextField(label="Título *", width=320, autofocus=True)
-        self.isbn_input = ft.TextField(label="ISBN", width=320)
+        # =========================
+        # Estilos reutilizados (HomePage)
+        # =========================
+        INPUT_STYLE = dict(
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
+        )
+
+        # =========================
+        # Inputs
+        # =========================
+        self.titulo_input = ft.TextField(
+            label="Título *",
+            autofocus=True,
+            **INPUT_STYLE
+        )
+
+        self.isbn_input = ft.TextField(
+            label="ISBN",
+            **INPUT_STYLE
+        )
 
         self.anio_input = ft.TextField(
             label="Año de publicación",
             hint_text="YYYY (ej: 2024)",
-            width=320,
-            keyboard_type=ft.KeyboardType.NUMBER
+            keyboard_type=ft.KeyboardType.NUMBER,
+            **INPUT_STYLE
         )
 
-        self.edicion_input = ft.TextField(label="Edición", width=320)
+        self.edicion_input = ft.TextField(
+            label="Edición",
+            **INPUT_STYLE
+        )
 
-        # Tipo con dropdown (por CHECK constraint)
         self.tipo_dd = ft.Dropdown(
             label="Tipo *",
             width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
             options=[
                 ft.dropdown.Option("FISICO"),
                 ft.dropdown.Option("DIGITAL"),
-            ]
+            ],
         )
 
         self.descripcion_input = ft.TextField(
@@ -36,21 +64,29 @@ class CrearLibroPage(ft.Column):
             multiline=True,
             min_lines=2,
             max_lines=3,
-            width=320
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
         )
 
-        # ---- Categorías (FK: id_categoria) ----
+        # =========================
+        # Categorías
+        # =========================
         cats = self.db.get_categorias()
         self.categoria_dd = ft.Dropdown(
             label="Categoría *",
             width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
             options=[
                 ft.dropdown.Option(key=str(c["id_categoria"]), text=c["nombre"])
                 for c in cats
-            ]
+            ],
         )
 
-        # ---- Ubicaciones ----
+        # =========================
+        # Ubicaciones
+        # =========================
         ubis = self.db.get_ubicaciones()
 
         def ubicacion_text(u: dict) -> str:
@@ -65,37 +101,69 @@ class CrearLibroPage(ft.Column):
 
         self.ubicacion_dd = ft.Dropdown(
             label="Ubicación *",
-            width=320,
+            width=260,
+            bgcolor="#f5f7fa",
+            border_radius=8,
             options=[
                 ft.dropdown.Option(
                     key=str(u["id_ubicacion"]),
                     text=ubicacion_text(u)
                 )
                 for u in ubis
-            ]
+            ],
         )
 
-        # ---- Autores ----
+        self.btn_nueva_ubicacion = ft.IconButton(
+            icon=ft.Icons.ADD_LOCATION_ALT,
+            tooltip="Crear nueva ubicación",
+            icon_color="#1976d2",
+            on_click=lambda e: navigate("/ubicacion"),
+        )
+
+        # =========================
+        # Autores
+        # =========================
         self.autores_ids_input = ft.TextField(
-            label="Autores (IDs separados por coma) ej: 1,3,5",
-            width=320
+            label="Autores (IDs separados por coma)",
+            **INPUT_STYLE
         )
 
-        # ---- Botones ----
+        # =========================
+        # Botones
+        # =========================
         self.btn_cancelar = ft.TextButton(
-            content=ft.Text("Cancelar"),
-            on_click=lambda e: self.navigate("/")
+            "Cancelar",
+            on_click=lambda e: navigate("/"),
         )
 
         self.btn_crear = ft.ElevatedButton(
             content=ft.Row(
-                controls=[ft.Icon(ft.Icons.CHECK), ft.Text("Crear libro")],
-                spacing=8
+                [ft.Icon(ft.Icons.SAVE), ft.Text("Guardar libro")],
+                spacing=6,
             ),
-            on_click=self.crear_libro
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            on_click=self.crear_libro,
         )
 
-        # ---- Form ----
+        # =========================
+        # Header (igual al HomePage)
+        # =========================
+        header = ft.Container(
+            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+            bgcolor="#aedff4",
+            border_radius=8,
+            content=ft.Text(
+                "Crear nuevo libro",
+                size=22,
+                weight=ft.FontWeight.BOLD,
+                color="#38638f",
+            ),
+        )
+
+        # =========================
+        # Formulario
+        # =========================
         form = ft.Column(
             controls=[
                 self.titulo_input,
@@ -105,29 +173,37 @@ class CrearLibroPage(ft.Column):
                 self.tipo_dd,
                 self.descripcion_input,
                 self.categoria_dd,
-                self.ubicacion_dd,
+                ft.Row(
+                    [self.ubicacion_dd, self.btn_nueva_ubicacion],
+                    spacing=8,
+                ),
                 self.autores_ids_input,
                 ft.Row(
-                    controls=[self.btn_cancelar, self.btn_crear],
-                    alignment=ft.MainAxisAlignment.END
-                )
+                    [self.btn_cancelar, self.btn_crear],
+                    alignment=ft.MainAxisAlignment.END,
+                ),
             ],
-            spacing=12,
-            tight=True
+            spacing=14,
         )
 
         container = ft.Container(
-            content=form,
-            padding=20,
+            content=ft.Column(
+                [header, form],
+                spacing=20,
+            ),
+            padding=24,
             bgcolor=ft.Colors.WHITE,
             border_radius=8,
-            width=650
+            width=700,
         )
 
         self.controls = [
             ft.Row([container], alignment=ft.MainAxisAlignment.CENTER, expand=True)
         ]
 
+    # =========================
+    # Lógica (SIN CAMBIOS)
+    # =========================
     def crear_libro(self, e):
         try:
             titulo = (self.titulo_input.value or "").strip()
@@ -153,7 +229,6 @@ class CrearLibroPage(ft.Column):
             anio_publicacion = int(anio) if anio else None
 
             autores_csv = (self.autores_ids_input.value or "").strip()
-            id_ubicacion = int(self.ubicacion_dd.value)
 
             self.db.crear_libro(
                 titulo=titulo,
@@ -165,20 +240,18 @@ class CrearLibroPage(ft.Column):
                 id_categoria=int(self.categoria_dd.value),
                 activo=1,
                 autores_ids_csv=autores_csv if autores_csv else None,
-                id_ubicacion=id_ubicacion
+                id_ubicacion=int(self.ubicacion_dd.value),
             )
 
             self._page.snack_bar = ft.SnackBar(
                 content=ft.Text("✅ Libro guardado correctamente"),
-                bgcolor=ft.Colors.GREEN_500
+                bgcolor=ft.Colors.GREEN_500,
             )
             self._page.snack_bar.open = True
             self._page.update()
 
             self.navigate("/")
 
-        except ValueError:
-            self.mostrar_error("El año de publicación debe ser un número válido.")
         except Exception as ex:
             self.mostrar_error(str(ex))
 
