@@ -43,54 +43,31 @@ class HomePage(ft.Column):
                 snack(f"No se pudo abrir el archivo: {ex}")
 
         # =========================
-        # Ver PDF (consulta SOLO al hacer click) + DEBUG EN TERMINAL
+        # Ver PDF
         # =========================
         def ver_pdf(id_libro: int):
             try:
-                print(f"\n[DEBUG] ===== VER PDF =====")
-                print(f"[DEBUG] id_libro: {id_libro}")
-
                 data = self._db.get_libro_pdf(int(id_libro))
-                print(f"[DEBUG] get_libro_pdf() -> {type(data)} | {data}")
-
                 if not data:
-                    print("[DEBUG] No hay data (None / vacío).")
                     snack("Este libro no tiene PDF aún.")
                     return
 
                 nombre = (data.get("nombre_archivo") or f"libro_{id_libro}.pdf")
                 contenido = data.get("contenido")
-
-                print(f"[DEBUG] nombre_archivo: {nombre}")
-                print(f"[DEBUG] contenido type: {type(contenido)}")
-
                 if contenido is None:
-                    print("[DEBUG] contenido es None")
                     snack("El PDF existe pero vino vacío desde la BD.")
                     return
 
-                # ✅ pyodbc puede devolver memoryview
                 pdf_bytes = bytes(contenido)
-                print(f"[DEBUG] pdf_bytes len: {len(pdf_bytes)}")
 
                 out_path = os.path.join(
                     tempfile.gettempdir(),
                     f"libro_{id_libro}_{safe_filename(nombre)}"
                 )
-                print(f"[DEBUG] out_path: {out_path}")
 
                 with open(out_path, "wb") as f:
                     f.write(pdf_bytes)
 
-                exists = os.path.exists(out_path)
-                size = os.path.getsize(out_path) if exists else -1
-                print(f"[DEBUG] file exists: {exists} | size: {size}")
-
-                if (not exists) or size == 0:
-                    snack("No se pudo crear el archivo temporal del PDF (0 bytes).")
-                    return
-
-                print("[DEBUG] Abriendo PDF con app por defecto…")
                 open_file_default_app(out_path)
 
             except Exception as ex:
@@ -98,7 +75,7 @@ class HomePage(ft.Column):
                 snack(f"Error abriendo PDF: {ex}")
 
         # =========================
-        # Picker (PowerShell robusto + fallback Tkinter)
+        # Picker PDF
         # =========================
         def pick_pdf_windows() -> str | None:
             powershell_51 = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -182,8 +159,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 snack(f"No se pudo abrir selector (Tkinter): {ex}")
                 return None
 
-
-
         # =========================
         # UI
         # =========================
@@ -210,7 +185,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             focused_border_color="#1976d2",
             text_size=14,
         )
-
 
         libros_table = ft.DataTable(
             bgcolor=ft.Colors.WHITE,
@@ -239,7 +213,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         # =========================
         # Subir PDF
         # =========================
-
         def subir_pdf_para_libro(id_libro: int):
             path = pick_pdf_windows()
             if not path:
@@ -261,9 +234,32 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             snack("PDF guardado correctamente ✅")
 
         # =========================
+        # Mostrar libros
+        # =========================
+        def mostrar_libros(e=None):
+            libros_table.rows.clear()
+            self._libros_cache = self._db.get_libros()
+
+            for libro in self._libros_cache:
+                libros_table.rows.append(build_row(libro))
+
+            self._page.update()
+
+        # =========================
+        # Toggle activo/inactivo
+        # =========================
+        def toggle_activo(libro_id: int, estado_actual: bool):
+            nuevo_estado = 0 if estado_actual else 1
+            try:
+                self._db.set_libro_activo(libro_id, nuevo_estado)
+                snack("Libro activado ✅" if nuevo_estado == 1 else "Libro desactivado ✅")
+                mostrar_libros()
+            except Exception as ex:
+                snack(f"Error al actualizar estado: {ex}")
+
+        # =========================
         # Construir filas
         # =========================
-
         def build_row(libro: dict) -> ft.DataRow:
             id_libro = int(libro["id_libro"])
             tipo = (libro.get("tipo") or "").strip().upper()
@@ -315,35 +311,15 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                     content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
                 )
 
-            def desactivar_libro(e, libro_id):
-                def confirmar_desactivar(dialog_event):
-                    try:
-                        self._db.desactivar_libro(libro_id)
-                        snack("Libro desactivado correctamente ✅")
-                        mostrar_libros()
-                    except Exception as ex:
-                        snack(f"Error al desactivar: {ex}")
-                    finally:
-                        dialog.open = False
-                        self._page.update()
+            # ---- Activo robusto (bit / bool / int / str)
+            activo_value = libro.get("activo")
+            is_activo = (
+                activo_value == 1
+                or activo_value is True
+                or str(activo_value).strip().lower() in ("1", "true")
+            )
 
-                def cancelar_desactivar(dialog_event):
-                    dialog.open = False
-                    self._page.update()
-
-                dialog = ft.AlertDialog(
-                    modal=True,
-                    title=ft.Text("Confirmar desactivación"),
-                    content=ft.Text("¿Está seguro de que desea desactivar este libro?"),
-                    actions=[
-                        ft.TextButton("Cancelar", on_click=cancelar_desactivar),
-                        ft.TextButton("Desactivar", on_click=confirmar_desactivar, style=ft.ButtonStyle(color=ft.Colors.RED)),
-                    ],
-                )
-                self._page.overlay.append(dialog)
-                dialog.open = True
-                self._page.update()
-
+            # ---- Acciones con toggle rojo/verde
             acciones = ft.DataCell(
                 ft.Row(
                     [
@@ -360,28 +336,16 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                             lambda e, i=id_libro: navigate(f"/editlib/{i}"),
                         ),
                         action_button(
-                            ft.Icons.BLOCK,
-                            ft.Colors.RED,
-                            "Desactivar",
-                            lambda e, i=id_libro: desactivar_libro(e, i),
+                            ft.Icons.BLOCK if is_activo else ft.Icons.CHECK_CIRCLE,
+                            ft.Colors.RED if is_activo else ft.Colors.GREEN,
+                            "Desactivar" if is_activo else "Activar",
+                            lambda e, i=id_libro, st=is_activo: toggle_activo(i, st),
                         ),
                     ],
                     spacing=10,
                     alignment=ft.MainAxisAlignment.CENTER,
                     expand=True,
                 )
-            )
-
-            # =========================
-            # ✅ FIX MINIMO: aceptar activo / Activo / ACTIVO
-            # =========================
-            activo_value = libro.get("activo", libro.get("Activo", libro.get("ACTIVO")))
-
-            # Interpretar correctamente el valor de activo (0, 1, True, False, "0", "1")
-            is_activo = (
-                activo_value == 1
-                or activo_value is True
-                or str(activo_value).strip().lower() in ("1", "true")
             )
 
             return ft.DataRow(
@@ -399,7 +363,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         # =========================
         # Filtro
         # =========================
-
         def filtrar_libros(texto):
             libros_table.rows.clear()
             q = (texto or "").strip().lower()
@@ -416,20 +379,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             filtrar_libros(e.control.value)
 
         search_input.on_change = on_search_change
-
-        # =========================
-        # Mostrar libros
-        # =========================
-
-        def mostrar_libros(e=None):
-            libros_table.rows.clear()
-            self._libros_cache = self._db.get_libros()
-
-            for libro in self._libros_cache:
-                libros_table.rows.append(build_row(libro))
-
-            self._page.update()
-
 
         header = ft.Container(
             padding=ft.padding.symmetric(horizontal=20, vertical=12),
@@ -448,7 +397,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
         )
-
 
         container = ft.Container(
             content=ft.Column(

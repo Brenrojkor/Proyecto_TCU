@@ -202,3 +202,27 @@ class Database:
         
         self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
         self.conn.commit()
+
+    # =========================
+    # ✅ NUEVO (NO BORRA NADA): Toggle Activo/Inactivo
+    # =========================
+    def set_libro_activo(self, id_libro: int, activo: int):
+        """
+        Activa/Desactiva un libro usando dbo.sp_SetLibroActivo.
+        activo: 1 (activar) | 0 (desactivar)
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            "EXEC dbo.sp_SetLibroActivo @id_libro = ?, @activo = ?",
+            (id_libro, int(activo))
+        )
+
+        # Limpia resultsets (por si el SP devuelve SELECT)
+        try:
+            while cur.nextset():
+                pass
+        except Exception:
+            pass
+
+        self.conn.commit()
+        cur.close()
