@@ -146,3 +146,59 @@ class Database:
         row = cur.fetchone()
         cur.close()
         return bool(row[0]) if row else False
+
+    # =========================
+    # LIBROS - Detalles y Desactivar
+    # =========================
+    def get_libro_detalle(self, id_libro: int):
+        """Obtiene los detalles completos de un libro por su ID"""
+        try:
+            # Intentar con SP si existe
+            cur = self.conn.cursor()
+            cur.execute("EXEC dbo.sp_ObtenerDetalleLibro @id_libro = ?", (id_libro,))
+            row = cur.fetchone()
+            
+            if row:
+                columnas = [col[0] for col in cur.description] if cur.description else []
+                cur.close()
+                return dict(zip(columnas, row)) if columnas else None
+            cur.close()
+        except Exception:
+            pass
+        
+        # Fallback: buscar en la lista general de libros
+        libros = self.get_libros()
+        for libro in libros:
+            if int(libro.get("id_libro", 0)) == id_libro:
+                return libro
+        return None
+
+    def desactivar_libro(self, id_libro: int):
+        """Desactiva un libro en la base de datos"""
+        self.cursor.execute(
+            "EXEC sp_DesactivarLibro @id_libro = ?",
+            (id_libro,)
+        )
+        self.conn.commit()
+
+    def update_libro(self, id_libro: int, titulo: str, isbn: str, anio_publicacion: int,
+                     edicion: str, tipo: str, descripcion: str, id_categoria: int,
+                     autores_ids_csv: str = None, id_ubicacion: int = None):
+        """Actualiza los detalles de un libro existente"""
+        param_str = "@id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @autores_ids_csv = ?, @id_ubicacion = ?"
+        
+        values = [
+            id_libro,
+            titulo,
+            isbn if isbn else None,
+            anio_publicacion if anio_publicacion else None,
+            edicion if edicion else None,
+            tipo,
+            descripcion if descripcion else None,
+            id_categoria,
+            autores_ids_csv if autores_ids_csv else None,
+            id_ubicacion if id_ubicacion else None,
+        ]
+        
+        self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
+        self.conn.commit()

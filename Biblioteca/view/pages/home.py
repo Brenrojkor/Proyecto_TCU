@@ -315,6 +315,35 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                     content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
                 )
 
+            def desactivar_libro(e, libro_id):
+                def confirmar_desactivar(dialog_event):
+                    try:
+                        self._db.desactivar_libro(libro_id)
+                        snack("Libro desactivado correctamente ✅")
+                        mostrar_libros()
+                    except Exception as ex:
+                        snack(f"Error al desactivar: {ex}")
+                    finally:
+                        dialog.open = False
+                        self._page.update()
+
+                def cancelar_desactivar(dialog_event):
+                    dialog.open = False
+                    self._page.update()
+
+                dialog = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Confirmar desactivación"),
+                    content=ft.Text("¿Está seguro de que desea desactivar este libro?"),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=cancelar_desactivar),
+                        ft.TextButton("Desactivar", on_click=confirmar_desactivar, style=ft.ButtonStyle(color=ft.Colors.RED)),
+                    ],
+                )
+                self._page.overlay.append(dialog)
+                dialog.open = True
+                self._page.update()
+
             acciones = ft.DataCell(
                 ft.Row(
                     [
@@ -334,6 +363,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                             ft.Icons.BLOCK,
                             ft.Colors.RED,
                             "Desactivar",
+                            lambda e, i=id_libro: desactivar_libro(e, i),
                         ),
                     ],
                     spacing=10,
@@ -342,13 +372,25 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 )
             )
 
+            # =========================
+            # ✅ FIX MINIMO: aceptar activo / Activo / ACTIVO
+            # =========================
+            activo_value = libro.get("activo", libro.get("Activo", libro.get("ACTIVO")))
+
+            # Interpretar correctamente el valor de activo (0, 1, True, False, "0", "1")
+            is_activo = (
+                activo_value == 1
+                or activo_value is True
+                or str(activo_value).strip().lower() in ("1", "true")
+            )
+
             return ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("tipo", ""), text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text("Sí" if libro.get("activo") else "No", text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text("Sí" if is_activo else "No", text_align=ft.TextAlign.CENTER)),
                     documentos,
                     acciones,
                 ]

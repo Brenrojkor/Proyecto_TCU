@@ -8,6 +8,8 @@ from view.pages.ubicacionView import UbicacionView
 from view.pages.login import LoginPage
 from view.pages.registro import RegistroPage
 from view.pages.usuarios import UsuariosPage
+from view.pages.detallelib import DetalleLibroPage
+from view.pages.editarlib import EditarLibroPage
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -24,7 +26,8 @@ class Router:
              "/login": LoginPage,
              "/registro": RegistroPage,
              "/usuarios": UsuariosPage,
-             
+             "/libro": DetalleLibroPage,
+             "/editlib": EditarLibroPage,
         }
 
     def set_container(self, container: ft.Column):
@@ -33,8 +36,23 @@ class Router:
     def navigate(self, route: str):
         self.container.controls.clear()
 
-        view = self.routes.get(route, self.not_found)
-        self.container.controls.append(view(self.navigate, self.page))
+        # Extraer parámetro si existe (ej: /libro/123 -> /libro, 123)
+        route_base = route
+        param = None
+        
+        parts = route.rstrip("/").split("/")
+        if len(parts) > 2 and parts[-1].isdigit():
+            # Detectar si hay parámetro numérico
+            param = int(parts[-1])
+            route_base = "/" + parts[1] if len(parts) > 1 else "/"
+
+        view_class = self.routes.get(route_base, self.not_found)
+        
+        # Pasar parámetro si existe
+        if param is not None and route_base in ["/libro", "/editlib"]:
+            self.container.controls.append(view_class(self.navigate, self.page, param))
+        else:
+            self.container.controls.append(view_class(self.navigate, self.page))
 
         self.page.update()
 
