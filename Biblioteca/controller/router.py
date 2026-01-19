@@ -10,6 +10,7 @@ from view.pages.registro import RegistroPage
 from view.pages.usuarios import UsuariosPage
 from view.pages.detallelib import DetalleLibroPage
 from view.pages.editarlib import EditarLibroPage
+from view.pages.estadisticas import EstadisticasView
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -28,6 +29,7 @@ class Router:
              "/usuarios": UsuariosPage,
              "/libro": DetalleLibroPage,
              "/editlib": EditarLibroPage,
+             "/estadisticas": EstadisticasView,
         }
 
     def set_container(self, container: ft.Column):

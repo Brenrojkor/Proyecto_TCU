@@ -1,65 +1,5 @@
 import flet as ft
 
-def NavBar(navigate):
-    return ft.AppBar(
-        title=ft.Text("📚 Biblioteca"),
-        center_title=False,
-        bgcolor=ft.Colors.BLUE_600,
-        leading=ft.IconButton(ft.Icons.MENU, tooltip="Menú"),
-        actions=[
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.HOME), ft.Text("Inicio")],
-                    spacing=5
-                ),
-                tooltip="Inicio",
-                on_click=lambda _: navigate("/")
-            ),
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.BOOK), ft.Text("Libros")],
-                    spacing=5
-                ),
-                tooltip="Libros",
-                on_click=lambda _: navigate("/libros")
-            ),
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.ADD_CHART_SHARP), ft.Text("Categorías")],
-                    spacing=5
-                ),
-                tooltip="Categorías",
-                on_click=lambda _: navigate("/categorias")
-            ),
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.PERSON), ft.Text("Autores")],
-                    spacing=5
-                ),
-                tooltip="Autores",
-                on_click=lambda _: navigate("/autores")
-            ),
-
-            # ✅ ÚNICO AGREGADO: UBICACIÓN
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.LOCATION_ON), ft.Text("Ubicación")],
-                    spacing=5
-                ),
-                tooltip="Ubicación",
-                on_click=lambda _: navigate("/ubicacion")
-            ),
-
-            ft.TextButton(
-                content=ft.Row(
-                    controls=[ft.Icon(ft.Icons.LOGOUT), ft.Text("Salir")],
-                    spacing=5
-                ),
-                tooltip="Salir",
-                on_click=lambda _: navigate("/logout")
-            ),
-        ]
-    )
 def NavBar(page, navigate):
 
     def nav_item(text, route):
@@ -141,6 +81,7 @@ def NavBar(page, navigate):
                     nav_item("Inicio", "/"),
                     libros_menu,
                     nav_item("Dashboard", "/dashboard"),
+                    nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),
 
                     # 👇 Avatar clickeable
