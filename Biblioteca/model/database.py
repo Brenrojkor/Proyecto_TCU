@@ -210,7 +210,6 @@ class Database:
         self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
         self.conn.commit()
 
-
     # =========================
     # Toggle Activo/Inactivo
     # =========================
@@ -229,3 +228,50 @@ class Database:
 
         self.conn.commit()
         cur.close()
+
+    # =========================
+    # CONTACTOS
+    # =========================
+    def get_contactos(self):
+        cur = self.conn.cursor()
+        cur.execute("EXEC dbo.sp_VerContactos")
+        columnas = [col[0] for col in cur.description]
+        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        cur.close()
+        return data
+
+    def crear_contacto(self, tipo, institucion, nombre=None, correo=None, telefono=None, descripcion=None):
+        self.cursor.execute(
+            "EXEC dbo.sp_CrearContacto @tipo = ?, @institucion = ?, @nombre = ?, @correo = ?, @telefono = ?, @descripcion = ?",
+            (
+                tipo,
+                institucion,
+                nombre if nombre else None,
+                correo if correo else None,
+                telefono if telefono else None,
+                descripcion if descripcion else None,
+            )
+        )
+        self.conn.commit()
+
+    def editar_contacto(self, id_contacto, tipo, institucion, nombre=None, correo=None, telefono=None, descripcion=None):
+        self.cursor.execute(
+            "EXEC dbo.sp_EditarContacto @id_contacto = ?, @tipo = ?, @institucion = ?, @nombre = ?, @correo = ?, @telefono = ?, @descripcion = ?",
+            (
+                int(id_contacto),
+                tipo,
+                institucion,
+                nombre if nombre else None,
+                correo if correo else None,
+                telefono if telefono else None,
+                descripcion if descripcion else None,
+            )
+        )
+        self.conn.commit()
+
+    def eliminar_contacto(self, id_contacto: int):
+        self.cursor.execute(
+            "EXEC dbo.sp_EliminarContacto @id_contacto = ?",
+            (int(id_contacto),)
+        )
+        self.conn.commit()

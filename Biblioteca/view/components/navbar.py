@@ -80,6 +80,7 @@ def NavBar(page, navigate):
                 controls=[
                     nav_item("Inicio", "/"),
                     libros_menu,
+                    nav_item("Contactos", "/contactos"),
                     nav_item("Dashboard", "/dashboard"),
                     nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),

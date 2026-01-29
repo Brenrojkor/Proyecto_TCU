@@ -1,8 +1,10 @@
 import flet as ft
+from view.pages.contactos import ContactosPage
 from view.pages.home import HomePage
 from view.pages.categorias import CategoriasPage
 from view.components.navbar import NavBar  
 from view.pages.createlib import CrearLibroPage
+from view.pages.createcontacto import CrearContactoPage
 from view.pages.autores import AutoresPage
 
 from view.pages.login import LoginPage
@@ -20,8 +22,10 @@ class Router:
         #Rutas
         self.routes = {
             "/": HomePage,
+            "/contactos": ContactosPage,
             "/categorias": CategoriasPage,
              "/createlib": CrearLibroPage,
+             "/createcontacto": CrearContactoPage,
              "/autores": AutoresPage,
              "/login": LoginPage,
              "/registro": RegistroPage,
