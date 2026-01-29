@@ -162,7 +162,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         # =========================
         # UI
         # =========================
-
         button_crear_libro = ft.ElevatedButton(
             content=ft.Row(
                 [
@@ -175,15 +174,29 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         )
 
         search_input = ft.TextField(
-            hint_text="Buscar por título...",
+            hint_text="Buscar en todo...",
             prefix_icon=ft.Icons.SEARCH,
-            width=320,
+            width=360,
             height=44,
             bgcolor="#f5f7fa",
             border_radius=8,
             border_color="#cfd8dc",
             focused_border_color="#1976d2",
             text_size=14,
+        )
+
+        # ✅ Dropdown para Activo/Inactivo/Todos
+        estado_dd = ft.Dropdown(
+            width=200,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            value="TODOS",
+            options=[
+                ft.dropdown.Option("TODOS"),
+                ft.dropdown.Option("ACTIVOS"),
+                ft.dropdown.Option("INACTIVOS"),
+            ],
         )
 
         libros_table = ft.DataTable(
@@ -194,11 +207,14 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             heading_row_height=48,
             data_row_min_height=52,
             data_row_max_height=52,
-            column_spacing=50,
+            column_spacing=40,
             horizontal_margin=16,
             columns=[
                 ft.DataColumn(label=ft.Text("Título", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Clasificación DUI", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Categoría", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Autores", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(label=ft.Text("Descripción", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("ISBN", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Tipo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Activo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
@@ -239,11 +255,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         def mostrar_libros(e=None):
             libros_table.rows.clear()
             self._libros_cache = self._db.get_libros()
-
-            for libro in self._libros_cache:
-                libros_table.rows.append(build_row(libro))
-
-            self._page.update()
+            aplicar_filtros()
 
         # =========================
         # Toggle activo/inactivo
@@ -311,7 +323,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                     content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
                 )
 
-            # ---- Activo robusto (bit / bool / int / str)
+            # ---- Activo robusto
             activo_value = libro.get("activo")
             is_activo = (
                 activo_value == 1
@@ -319,7 +331,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 or str(activo_value).strip().lower() in ("1", "true")
             )
 
-            # ---- Acciones con toggle rojo/verde
+            # ---- Acciones
             acciones = ft.DataCell(
                 ft.Row(
                     [
@@ -348,10 +360,19 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 )
             )
 
+            descripcion = (libro.get("descripcion", "") or "").strip()
+            descripcion_short = (descripcion[:80] + "…") if len(descripcion) > 80 else descripcion
+
+            autores = (libro.get("autores", "") or "").strip()
+            autores_short = (autores[:60] + "…") if len(autores) > 60 else autores
+
             return ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(libro.get("clasificacion_dui", "") or "", text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(autores_short, text_align=ft.TextAlign.CENTER)),
+                    ft.DataCell(ft.Text(descripcion_short, text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("tipo", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text("Sí" if is_activo else "No", text_align=ft.TextAlign.CENTER)),
@@ -361,24 +382,75 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             )
 
         # =========================
-        # Filtro
+        # Filtros combinados
         # =========================
-        def filtrar_libros(texto):
+        def libro_match_estado(libro: dict, estado: str) -> bool:
+            activo_value = libro.get("activo")
+            is_activo = (
+                activo_value == 1
+                or activo_value is True
+                or str(activo_value).strip().lower() in ("1", "true")
+            )
+
+            estado = (estado or "TODOS").strip().upper()
+            if estado == "ACTIVOS":
+                return is_activo
+            if estado == "INACTIVOS":
+                return not is_activo
+            return True
+
+        def libro_match_texto(libro: dict, q: str) -> bool:
+            if not q:
+                return True
+
+            activo_value = libro.get("activo")
+            is_activo = (
+                activo_value == 1
+                or activo_value is True
+                or str(activo_value).strip().lower() in ("1", "true")
+            )
+
+            valores = [
+                libro.get("titulo", ""),
+                libro.get("clasificacion_dui", ""),
+                libro.get("categoria", ""),
+                libro.get("autores", ""),
+                libro.get("descripcion", ""),
+                libro.get("isbn", ""),
+                libro.get("tipo", ""),
+                "si" if is_activo else "no",
+                "activo" if is_activo else "inactivo",
+            ]
+
+            haystack = " | ".join([(v or "") for v in valores]).lower()
+            return q in haystack
+
+        # ✅ FIX: aceptar valores directos (evita leer value viejo)
+        def aplicar_filtros(q=None, estado=None):
             libros_table.rows.clear()
-            q = (texto or "").strip().lower()
+
+            q = (q if q is not None else (search_input.value or "")).strip().lower()
+            estado = (estado if estado is not None else (estado_dd.value or "TODOS")).strip().upper()
 
             for libro in self._libros_cache:
-                if not q or q in (libro.get("titulo") or "").lower():
+                if libro_match_estado(libro, estado) and libro_match_texto(libro, q):
                     libros_table.rows.append(build_row(libro))
 
             self._page.update()
 
+        # ✅ FIX: usar e.control.value
         def on_search_change(e):
             if not self._libros_cache:
                 self._libros_cache = self._db.get_libros()
-            filtrar_libros(e.control.value)
+            aplicar_filtros(q=e.control.value, estado=estado_dd.value)
+
+        def on_estado_change(e):
+            if not self._libros_cache:
+                self._libros_cache = self._db.get_libros()
+            aplicar_filtros(q=search_input.value, estado=e.control.value)
 
         search_input.on_change = on_search_change
+        estado_dd.on_change = on_estado_change
 
         header = ft.Container(
             padding=ft.padding.symmetric(horizontal=20, vertical=12),
@@ -402,7 +474,11 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             content=ft.Column(
                 [
                     header,
-                    ft.Row([search_input], alignment=ft.MainAxisAlignment.END),
+                    ft.Row(
+                        [search_input, estado_dd],
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=12,
+                    ),
                     ft.Row([libros_table], alignment=ft.MainAxisAlignment.CENTER),
                 ],
                 spacing=20,

@@ -4,7 +4,7 @@ from view.pages.categorias import CategoriasPage
 from view.components.navbar import NavBar  
 from view.pages.createlib import CrearLibroPage
 from view.pages.autores import AutoresPage
-from view.pages.ubicacionView import UbicacionView
+
 from view.pages.login import LoginPage
 from view.pages.registro import RegistroPage
 from view.pages.usuarios import UsuariosPage
@@ -23,7 +23,6 @@ class Router:
             "/categorias": CategoriasPage,
              "/createlib": CrearLibroPage,
              "/autores": AutoresPage,
-             "/ubicacion": UbicacionView,
              "/login": LoginPage,
              "/registro": RegistroPage,
              "/usuarios": UsuariosPage,

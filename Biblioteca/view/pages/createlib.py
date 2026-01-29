@@ -85,39 +85,12 @@ class CrearLibroPage(ft.Column):
         )
 
         # =========================
-        # Ubicaciones
+        # Clasificación DUI (reemplaza Ubicación)
         # =========================
-        ubis = self.db.get_ubicaciones()
-
-        def ubicacion_text(u: dict) -> str:
-            sala = u.get("sala", "")
-            pasillo = u.get("pasillo") or "N/A"
-            est = u.get("estanteria") or "N/A"
-            nivel = u.get("nivel") or "N/A"
-            desc = (u.get("descripcion") or "").strip()
-
-            base = f"Sala {sala} | Pasillo {pasillo} | Estantería {est} | Nivel {nivel}"
-            return f"{base} - {desc}" if desc else base
-
-        self.ubicacion_dd = ft.Dropdown(
-            label="Ubicación *",
-            width=260,
-            bgcolor="#f5f7fa",
-            border_radius=8,
-            options=[
-                ft.dropdown.Option(
-                    key=str(u["id_ubicacion"]),
-                    text=ubicacion_text(u)
-                )
-                for u in ubis
-            ],
-        )
-
-        self.btn_nueva_ubicacion = ft.IconButton(
-            icon=ft.Icons.ADD_LOCATION_ALT,
-            tooltip="Crear nueva ubicación",
-            icon_color="#1976d2",
-            on_click=lambda e: navigate("/ubicacion"),
+        self.clasificacion_dui_input = ft.TextField(
+            label="Clasificación DUI *",
+            hint_text="Ej: DUI-BIB-2025-ARCHIVO-A",
+            **INPUT_STYLE
         )
 
         # =========================
@@ -173,10 +146,7 @@ class CrearLibroPage(ft.Column):
                 self.tipo_dd,
                 self.descripcion_input,
                 self.categoria_dd,
-                ft.Row(
-                    [self.ubicacion_dd, self.btn_nueva_ubicacion],
-                    spacing=8,
-                ),
+                self.clasificacion_dui_input,
                 self.autores_ids_input,
                 ft.Row(
                     [self.btn_cancelar, self.btn_crear],
@@ -202,7 +172,7 @@ class CrearLibroPage(ft.Column):
         ]
 
     # =========================
-    # Lógica (SIN CAMBIOS)
+    # Lógica (SIN CAMBIOS de flujo)
     # =========================
     def crear_libro(self, e):
         try:
@@ -221,8 +191,9 @@ class CrearLibroPage(ft.Column):
                 self.mostrar_error("Debe seleccionar una categoría.")
                 return
 
-            if not self.ubicacion_dd.value:
-                self.mostrar_error("Debe seleccionar una ubicación.")
+            clasificacion_dui = (self.clasificacion_dui_input.value or "").strip()
+            if not clasificacion_dui:
+                self.mostrar_error("La Clasificación DUI es obligatoria.")
                 return
 
             anio = (self.anio_input.value or "").strip()
@@ -240,7 +211,7 @@ class CrearLibroPage(ft.Column):
                 id_categoria=int(self.categoria_dd.value),
                 activo=1,
                 autores_ids_csv=autores_csv if autores_csv else None,
-                id_ubicacion=int(self.ubicacion_dd.value),
+                clasificacion_dui=clasificacion_dui,
             )
 
             self._page.snack_bar = ft.SnackBar(

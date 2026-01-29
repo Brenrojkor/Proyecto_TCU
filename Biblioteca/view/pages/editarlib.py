@@ -219,33 +219,13 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         )
 
         # =========================
-        # Ubicaciones
+        # Clasificación DUI (reemplaza Ubicación)
         # =========================
-        ubis = self.db.get_ubicaciones()
-
-        def ubicacion_text(u: dict) -> str:
-            sala = u.get("sala", "")
-            pasillo = u.get("pasillo") or "N/A"
-            est = u.get("estanteria") or "N/A"
-            nivel = u.get("nivel") or "N/A"
-            desc = (u.get("descripcion") or "").strip()
-
-            base = f"Sala {sala} | Pasillo {pasillo} | Estantería {est} | Nivel {nivel}"
-            return f"{base} - {desc}" if desc else base
-
-        self.ubicacion_dd = ft.Dropdown(
-            label="Ubicación *",
-            width=260,
-            bgcolor="#f5f7fa",
-            border_radius=8,
-            value=str(libro.get("id_ubicacion", "")),
-            options=[
-                ft.dropdown.Option(
-                    key=str(u["id_ubicacion"]),
-                    text=ubicacion_text(u)
-                )
-                for u in ubis
-            ],
+        self.clasificacion_dui_input = ft.TextField(
+            label="Clasificación DUI *",
+            hint_text="Ej: DUI-BIB-2025-ARCHIVO-A",
+            value=libro.get("clasificacion_dui", "") or "",
+            **INPUT_STYLE
         )
 
         self.autores_ids_input = ft.TextField(
@@ -338,7 +318,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             self.tipo_dd,
             self.descripcion_input,
             self.categoria_dd,
-            self.ubicacion_dd,
+            self.clasificacion_dui_input,
             self.autores_ids_input,
         ]
 
@@ -397,8 +377,9 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 self.mostrar_error("Debe seleccionar una categoría.")
                 return
 
-            if not self.ubicacion_dd.value:
-                self.mostrar_error("Debe seleccionar una ubicación.")
+            clasificacion_dui = (self.clasificacion_dui_input.value or "").strip()
+            if not clasificacion_dui:
+                self.mostrar_error("La Clasificación DUI es obligatoria.")
                 return
 
             anio = (self.anio_input.value or "").strip()
@@ -416,7 +397,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 descripcion=(self.descripcion_input.value or "").strip(),
                 id_categoria=int(self.categoria_dd.value),
                 autores_ids_csv=autores_csv if autores_csv else None,
-                id_ubicacion=int(self.ubicacion_dd.value),
+                clasificacion_dui=clasificacion_dui,
             )
 
             self._page.snack_bar = ft.SnackBar(

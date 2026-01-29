@@ -1,5 +1,6 @@
 import pyodbc
 
+
 class Database:
     def __init__(self):
         self.server = 'bibliotecati.database.windows.net'
@@ -27,12 +28,12 @@ class Database:
         self.cursor.execute("EXEC sp_VerCategorias")
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
-      
+
     def get_autores(self):
         self.cursor.execute("EXEC sp_VerAutores")
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
-    
+
     def get_usuarios(self):
         self.cursor.execute("EXEC sp_VerUsuarios")
         columnas = [col[0] for col in self.cursor.description]
@@ -44,7 +45,7 @@ class Database:
             (nombre, descripcion if descripcion else None)
         )
         self.conn.commit()
-    
+
     def set_autores(self, nombre, apellido, nacionalidad):
         self.cursor.execute(
             "EXEC sp_CrearAutor @nombre = ?, @apellido = ?, @nacionalidad = ?",
@@ -58,7 +59,7 @@ class Database:
             (id_categoria, nombre, descripcion if descripcion else None)
         )
         self.conn.commit()
-        
+
     def update_autor(self, id_autor, nombre, apellido, nacionalidad):
         self.cursor.execute(
             "EXEC sp_EditarAutor @id_autor = ?, @nombre = ?, @apellido = ?, @nacionalidad = ?",
@@ -66,39 +67,36 @@ class Database:
         )
         self.conn.commit()
 
-    def get_ubicaciones(self):
-        self.cursor.execute("EXEC dbo.sp_VerUbicaciones")
-        columnas = [col[0] for col in self.cursor.description]
-        return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
-    
-
-    def crear_ubicacion(self, sala, pasillo=None, estanteria=None, nivel=None, descripcion=None):
-        self.cursor.execute(
-        "EXEC dbo.sp_CrearUbicacion @sala=?, @pasillo=?, @estanteria=?, @nivel=?, @descripcion=?",
-        (sala, pasillo, estanteria, nivel, descripcion)
-    )
-        self.conn.commit()
-
-
-    def crear_libro(self, titulo, isbn, anio_publicacion, edicion, tipo, descripcion, id_categoria,
-                   activo=1, autores_ids_csv=None, id_ubicacion=None):
+    def crear_libro(
+        self,
+        titulo,
+        isbn,
+        anio_publicacion,
+        edicion,
+        tipo,
+        descripcion,
+        id_categoria,
+        activo=1,
+        autores_ids_csv=None,
+        clasificacion_dui=None
+    ):
+        param_str = """
+            @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
+            @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
+            @autores_ids_csv = ?, @clasificacion_dui = ?
         """
-        Ejecuta el stored procedure sp_CrearLibro.
-        Solo maneja base de datos, sin UI.
-        """
-        param_str = "@titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?, @autores_ids_csv = ?, @id_ubicacion = ?"
 
         values = [
             titulo,
             isbn if isbn else None,
-            anio_publicacion if anio_publicacion else None,
+            anio_publicacion,
             edicion if edicion else None,
             tipo,
             descripcion if descripcion else None,
             id_categoria,
             activo,
-            autores_ids_csv if autores_ids_csv else None,
-            id_ubicacion if id_ubicacion else None,
+            autores_ids_csv,
+            clasificacion_dui
         ]
 
         self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
@@ -114,7 +112,6 @@ class Database:
             (id_libro, nombre_archivo, pyodbc.Binary(contenido), "application/pdf"),
         )
 
-        # ✅ Limpia resultsets pendientes (evita que el siguiente SP devuelva mal)
         try:
             while cur.nextset():
                 pass
@@ -151,22 +148,20 @@ class Database:
     # LIBROS - Detalles y Desactivar
     # =========================
     def get_libro_detalle(self, id_libro: int):
-        """Obtiene los detalles completos de un libro por su ID"""
         try:
-            # Intentar con SP si existe
             cur = self.conn.cursor()
             cur.execute("EXEC dbo.sp_ObtenerDetalleLibro @id_libro = ?", (id_libro,))
             row = cur.fetchone()
-            
+
             if row:
                 columnas = [col[0] for col in cur.description] if cur.description else []
                 cur.close()
-                return dict(zip(columnas, row)) if columnas else None
+                return dict(zip(columnas, row))
+
             cur.close()
         except Exception:
             pass
-        
-        # Fallback: buscar en la lista general de libros
+
         libros = self.get_libros()
         for libro in libros:
             if int(libro.get("id_libro", 0)) == id_libro:
@@ -174,50 +169,58 @@ class Database:
         return None
 
     def desactivar_libro(self, id_libro: int):
-        """Desactiva un libro en la base de datos"""
         self.cursor.execute(
             "EXEC sp_DesactivarLibro @id_libro = ?",
             (id_libro,)
         )
         self.conn.commit()
 
-    def update_libro(self, id_libro: int, titulo: str, isbn: str, anio_publicacion: int,
-                     edicion: str, tipo: str, descripcion: str, id_categoria: int,
-                     autores_ids_csv: str = None, id_ubicacion: int = None):
-        """Actualiza los detalles de un libro existente"""
-        param_str = "@id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @autores_ids_csv = ?, @id_ubicacion = ?"
-        
+    def update_libro(
+        self,
+        id_libro,
+        titulo,
+        isbn,
+        anio_publicacion,
+        edicion,
+        tipo,
+        descripcion,
+        id_categoria,
+        autores_ids_csv=None,
+        clasificacion_dui=None
+    ):
+        param_str = """
+            @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?,
+            @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?,
+            @autores_ids_csv = ?, @clasificacion_dui = ?
+        """
+
         values = [
             id_libro,
             titulo,
-            isbn if isbn else None,
-            anio_publicacion if anio_publicacion else None,
-            edicion if edicion else None,
+            isbn,
+            anio_publicacion,
+            edicion,
             tipo,
-            descripcion if descripcion else None,
+            descripcion,
             id_categoria,
-            autores_ids_csv if autores_ids_csv else None,
-            id_ubicacion if id_ubicacion else None,
+            autores_ids_csv,
+            clasificacion_dui
         ]
-        
+
         self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
         self.conn.commit()
 
+
     # =========================
-    # ✅ NUEVO (NO BORRA NADA): Toggle Activo/Inactivo
+    # Toggle Activo/Inactivo
     # =========================
     def set_libro_activo(self, id_libro: int, activo: int):
-        """
-        Activa/Desactiva un libro usando dbo.sp_SetLibroActivo.
-        activo: 1 (activar) | 0 (desactivar)
-        """
         cur = self.conn.cursor()
         cur.execute(
             "EXEC dbo.sp_SetLibroActivo @id_libro = ?, @activo = ?",
             (id_libro, int(activo))
         )
 
-        # Limpia resultsets (por si el SP devuelve SELECT)
         try:
             while cur.nextset():
                 pass
