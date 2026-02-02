@@ -218,16 +218,35 @@ class ContactosPage(ft.Column):
         # =========================
         # Build row
         # =========================
+        def link_cell(text_value: str, url: str):
+            if not text_value:
+                return ft.DataCell(ft.Text(""))
+            return ft.DataCell(
+                ft.TextButton(
+                    text_value,
+                    on_click=lambda e: self._page.launch_url(url),
+                    style=ft.ButtonStyle(
+                        padding=0,
+                        color=ft.Colors.BLUE_700,
+                    ),
+                )
+            )
+
         def build_row(c: dict) -> ft.DataRow:
             desc = (c.get("descripcion") or "").strip()
             desc_short = (desc[:70] + "…") if len(desc) > 70 else desc
+
+            correo_val = (c.get("correo", "") or "").strip()
+            telefono_val = (c.get("telefono", "") or "").strip()
+            whatsapp_num = "".join([ch for ch in telefono_val if ch.isdigit()])
+            whatsapp_url = f"https://wa.me/{whatsapp_num}" if whatsapp_num else ""
 
             return ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(c.get("tipo", "") or "")),
                     ft.DataCell(ft.Text(c.get("nombre", "") or "")),
-                    ft.DataCell(ft.Text(c.get("correo", "") or "")),
-                    ft.DataCell(ft.Text(c.get("telefono", "") or "")),
+                    link_cell(correo_val, f"mailto:{correo_val}" if correo_val else ""),
+                    link_cell(telefono_val, whatsapp_url),
                     ft.DataCell(ft.Text(desc_short)),
                     ft.DataCell(
                         ft.Row(

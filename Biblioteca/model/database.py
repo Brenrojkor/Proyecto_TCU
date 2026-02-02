@@ -69,38 +69,41 @@ class Database:
 
     def crear_libro(
         self,
-        titulo,
-        isbn,
-        anio_publicacion,
-        edicion,
-        tipo,
-        descripcion,
-        id_categoria,
-        activo=1,
-        autores_ids_csv=None,
-        clasificacion_dui=None
-    ):
+    titulo,
+    isbn,
+    anio_publicacion,
+    edicion,
+    tipo,
+    descripcion,
+    id_categoria,
+    activo=1,
+    autores_ids_csv=None,
+    clasificacion_dui=None,
+    codigo_barras=None,   # ✅ NUEVO
+):
         param_str = """
-            @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
-            @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
-            @autores_ids_csv = ?, @clasificacion_dui = ?
-        """
+        @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
+        @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
+        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?
+    """
 
         values = [
-            titulo,
-            isbn if isbn else None,
-            anio_publicacion,
-            edicion if edicion else None,
-            tipo,
-            descripcion if descripcion else None,
-            id_categoria,
-            activo,
-            autores_ids_csv,
-            clasificacion_dui
-        ]
+        titulo,
+        isbn if isbn else None,
+        anio_publicacion,
+        edicion if edicion else None,
+        tipo,
+        descripcion if descripcion else None,
+        id_categoria,
+        activo,
+        autores_ids_csv,
+        clasificacion_dui,
+        codigo_barras if codigo_barras else None,  # ✅ NUEVO
+    ]
 
         self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
         self.conn.commit()
+
 
     # =========================
     #   PDFs (DIGITAL)
@@ -176,7 +179,26 @@ class Database:
         self.conn.commit()
 
     def update_libro(
-        self,
+         self,
+    id_libro,
+    titulo,
+    isbn,
+    anio_publicacion,
+    edicion,
+    tipo,
+    descripcion,
+    id_categoria,
+    autores_ids_csv=None,
+    clasificacion_dui=None,
+    codigo_barras=None,   # ✅ NUEVO
+):
+         param_str = """
+        @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?,
+        @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?,
+        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?
+    """
+
+         values = [
         id_libro,
         titulo,
         isbn,
@@ -185,30 +207,14 @@ class Database:
         tipo,
         descripcion,
         id_categoria,
-        autores_ids_csv=None,
-        clasificacion_dui=None
-    ):
-        param_str = """
-            @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?,
-            @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?,
-            @autores_ids_csv = ?, @clasificacion_dui = ?
-        """
+        autores_ids_csv,
+        clasificacion_dui,
+        codigo_barras if codigo_barras else None,  # ✅ NUEVO
+    ]
 
-        values = [
-            id_libro,
-            titulo,
-            isbn,
-            anio_publicacion,
-            edicion,
-            tipo,
-            descripcion,
-            id_categoria,
-            autores_ids_csv,
-            clasificacion_dui
-        ]
+         self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
+         self.conn.commit()
 
-        self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
-        self.conn.commit()
 
     # =========================
     # Toggle Activo/Inactivo

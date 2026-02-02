@@ -165,6 +165,14 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             **INPUT_STYLE
         )
 
+        # ✅ NUEVO: Código de barras (texto libre)
+        self.codigo_barras_input = ft.TextField(
+            label="Código de barras",
+            hint_text="Texto libre (sin formato)",
+            value=libro.get("codigo_barras", "") or "",
+            **INPUT_STYLE
+        )
+
         self.anio_input = ft.TextField(
             label="Año de publicación",
             hint_text="YYYY (ej: 2024)",
@@ -313,6 +321,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         form_controls = [
             self.titulo_input,
             self.isbn_input,
+            self.codigo_barras_input,  # ✅ NUEVO
             self.anio_input,
             self.edicion_input,
             self.tipo_dd,
@@ -382,6 +391,9 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 self.mostrar_error("La Clasificación DUI es obligatoria.")
                 return
 
+            # ✅ NUEVO
+            codigo_barras = (self.codigo_barras_input.value or "").strip()
+
             anio = (self.anio_input.value or "").strip()
             anio_publicacion = int(anio) if anio else None
 
@@ -398,6 +410,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 id_categoria=int(self.categoria_dd.value),
                 autores_ids_csv=autores_csv if autores_csv else None,
                 clasificacion_dui=clasificacion_dui,
+                codigo_barras=codigo_barras if codigo_barras else None,  # ✅ NUEVO
             )
 
             self._page.snack_bar = ft.SnackBar(

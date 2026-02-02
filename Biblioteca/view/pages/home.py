@@ -210,6 +210,9 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             column_spacing=40,
             horizontal_margin=16,
             columns=[
+                # ✅ NUEVO: Código de barras ANTES de Título
+                ft.DataColumn(label=ft.Text("Código de barras", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
+
                 ft.DataColumn(label=ft.Text("Título", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Clasificación DUI", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Categoría", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
@@ -366,8 +369,14 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             autores = (libro.get("autores", "") or "").strip()
             autores_short = (autores[:60] + "…") if len(autores) > 60 else autores
 
+            codigo_barras = (libro.get("codigo_barras", "") or "").strip()
+            codigo_barras_short = (codigo_barras[:40] + "…") if len(codigo_barras) > 40 else codigo_barras
+
             return ft.DataRow(
                 cells=[
+                    # ✅ NUEVO: celda Código de barras primero
+                    ft.DataCell(ft.Text(codigo_barras_short, text_align=ft.TextAlign.CENTER)),
+
                     ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("clasificacion_dui", "") or "", text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
@@ -411,6 +420,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             )
 
             valores = [
+                libro.get("codigo_barras", ""),  # ✅ NUEVO (busqueda)
                 libro.get("titulo", ""),
                 libro.get("clasificacion_dui", ""),
                 libro.get("categoria", ""),

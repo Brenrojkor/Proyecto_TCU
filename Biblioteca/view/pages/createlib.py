@@ -36,6 +36,13 @@ class CrearLibroPage(ft.Column):
             **INPUT_STYLE
         )
 
+        # ✅ NUEVO: Código de barras (texto libre)
+        self.codigo_barras_input = ft.TextField(
+            label="Código de barras",
+            hint_text="Texto libre (sin formato)",
+            **INPUT_STYLE
+        )
+
         self.anio_input = ft.TextField(
             label="Año de publicación",
             hint_text="YYYY (ej: 2024)",
@@ -141,6 +148,7 @@ class CrearLibroPage(ft.Column):
             controls=[
                 self.titulo_input,
                 self.isbn_input,
+                self.codigo_barras_input,  # ✅ NUEVO (antes de Año y Título)
                 self.anio_input,
                 self.edicion_input,
                 self.tipo_dd,
@@ -196,6 +204,9 @@ class CrearLibroPage(ft.Column):
                 self.mostrar_error("La Clasificación DUI es obligatoria.")
                 return
 
+            # ✅ NUEVO
+            codigo_barras = (self.codigo_barras_input.value or "").strip()
+
             anio = (self.anio_input.value or "").strip()
             anio_publicacion = int(anio) if anio else None
 
@@ -212,6 +223,7 @@ class CrearLibroPage(ft.Column):
                 activo=1,
                 autores_ids_csv=autores_csv if autores_csv else None,
                 clasificacion_dui=clasificacion_dui,
+                codigo_barras=codigo_barras if codigo_barras else None,  # ✅ NUEVO
             )
 
             self._page.snack_bar = ft.SnackBar(
