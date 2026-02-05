@@ -3,7 +3,7 @@ import pyodbc
 
 class Database:
     def __init__(self):
-        self.server = 'bibliotecati.database.windows.net'
+        self.server = 'bibliotecati0.database.windows.net'
         self.database = 'Biblioteca'
         self.username = 'Dbadmin'
         self.password = 'Biblioteca12'
@@ -281,3 +281,92 @@ class Database:
             (int(id_contacto),)
         )
         self.conn.commit()
+
+    # =========================
+    # NOTIFICACIONES - Reservas próximas a vencer
+    # =========================
+    def get_reservas_proximas_vencer(self, dias_anticipacion: int = 3):
+        """Obtiene las reservas que están próximas a su fecha de devolución"""
+        cur = self.conn.cursor()
+        try:
+            # Intentar usar un stored procedure si existe
+            cur.execute(
+                "EXEC dbo.sp_ObtenerReservasProximasVencer @dias = ?",
+                (dias_anticipacion,)
+            )
+        except Exception:
+            # Si no existe el SP, usar query directa
+            cur.execute("""
+                SELECT 
+                    r.id_reserva,
+                    l.titulo as libro_titulo,
+                    u.cedula as cedula_usuario,
+                    u.nombre as nombre_usuario,
+                    r.fecha_prestamo,
+                    r.fecha_devolucion,
+                    r.estado,
+                    DATEDIFF(day, GETDATE(), r.fecha_devolucion) as dias_restantes
+                FROM Reservas r
+                INNER JOIN Libros l ON r.id_libro = l.id_libro
+                INNER JOIN Usuarios u ON r.id_usuario = u.id_usuario
+                WHERE r.estado = 'PRESTADO'
+                    AND r.fecha_devolucion IS NOT NULL
+                    AND DATEDIFF(day, GETDATE(), r.fecha_devolucion) <= ?
+                    AND DATEDIFF(day, GETDATE(), r.fecha_devolucion) >= 0
+                ORDER BY r.fecha_devolucion ASC
+            """, (dias_anticipacion,))
+        
+        columnas = [col[0] for col in cur.description]
+        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        cur.close()
+        return data
+
+    def actualizar_fecha_devolucion(self, id_reserva: int, nueva_fecha: str):
+        """Actualiza la fecha de devolución de una reserva"""
+        cur = self.conn.cursor()
+        try:
+            # Intentar usar un stored procedure si existe
+            cur.execute(
+                "EXEC dbo.sp_ActualizarFechaDevolucion @id_reserva = ?, @nueva_fecha = ?",
+                (id_reserva, nueva_fecha)
+            )
+        except Exception:
+            # Si no existe el SP, usar query directa
+            cur.execute("""
+                UPDATE Reservas 
+                SET fecha_devolucion = ? 
+                WHERE id_reserva = ?
+            """, (nueva_fecha, id_reserva))
+        
+        self.conn.commit()
+        cur.close()
+
+    def get_reservas_vencidas(self):
+        """Obtiene las reservas que ya pasaron su fecha de devolución"""
+        cur = self.conn.cursor()
+        try:
+            cur.execute("EXEC dbo.sp_ObtenerReservasVencidas")
+        except Exception:
+            cur.execute("""
+                SELECT 
+                    r.id_reserva,
+                    l.titulo as libro_titulo,
+                    u.cedula as cedula_usuario,
+                    u.nombre as nombre_usuario,
+                    r.fecha_prestamo,
+                    r.fecha_devolucion,
+                    r.estado,
+                    DATEDIFF(day, r.fecha_devolucion, GETDATE()) as dias_vencidos
+                FROM Reservas r
+                INNER JOIN Libros l ON r.id_libro = l.id_libro
+                INNER JOIN Usuarios u ON r.id_usuario = u.id_usuario
+                WHERE r.estado IN ('PRESTADO', 'NO DEVUELTO')
+                    AND r.fecha_devolucion IS NOT NULL
+                    AND r.fecha_devolucion < CAST(GETDATE() AS DATE)
+                ORDER BY r.fecha_devolucion ASC
+            """)
+        
+        columnas = [col[0] for col in cur.description]
+        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        cur.close()
+        return data

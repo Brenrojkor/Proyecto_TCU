@@ -5,6 +5,7 @@ from view.pages.categorias import CategoriasPage
 from view.components.navbar import NavBar  
 from view.pages.createlib import CrearLibroPage
 from view.pages.createcontacto import CrearContactoPage
+from view.pages.reservas import ReservasPage
 from view.pages.autores import AutoresPage
 
 from view.pages.login import LoginPage
@@ -13,6 +14,7 @@ from view.pages.usuarios import UsuariosPage
 from view.pages.detallelib import DetalleLibroPage
 from view.pages.editarlib import EditarLibroPage
 from view.pages.estadisticas import EstadisticasView
+from view.pages.notificaciones import NotificacionesPage
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -26,6 +28,7 @@ class Router:
             "/categorias": CategoriasPage,
              "/createlib": CrearLibroPage,
              "/createcontacto": CrearContactoPage,
+             "/reservas": ReservasPage,
              "/autores": AutoresPage,
              "/login": LoginPage,
              "/registro": RegistroPage,
@@ -33,6 +36,7 @@ class Router:
              "/libro": DetalleLibroPage,
              "/editlib": EditarLibroPage,
              "/estadisticas": EstadisticasView,
+             "/notificaciones": NotificacionesPage,
         }
 
     def set_container(self, container: ft.Column):

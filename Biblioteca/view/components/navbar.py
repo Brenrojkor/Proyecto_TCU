@@ -1,6 +1,28 @@
 import flet as ft
+from model.database import Database
+from utils.notificaciones_manager import NotificacionesManager
+
 
 def NavBar(page, navigate):
+    # Obtener el número de notificaciones
+    notif_manager = NotificacionesManager()
+    
+    def get_notificaciones_count():
+        try:
+            db = Database()
+            proximas = db.get_reservas_proximas_vencer(dias_anticipacion=3)
+            vencidas = db.get_reservas_vencidas()
+            return len(proximas) + len(vencidas)
+        except:
+            return 0
+
+    total_count = get_notificaciones_count()
+    notif_count = notif_manager.get_count_no_vistas(total_count)
+    
+    def ir_a_notificaciones(e):
+        # Marcar todas las notificaciones actuales como vistas
+        notif_manager.marcar_como_vistas(total_count)
+        navigate("/notificaciones")
 
     def nav_item(text, route):
         return ft.TextButton(
@@ -81,11 +103,43 @@ def NavBar(page, navigate):
                     nav_item("Inicio", "/"),
                     libros_menu,
                     nav_item("Contactos", "/contactos"),
-                    nav_item("Dashboard", "/dashboard"),
+                    nav_item("Reservas", "/reservas"),
                     nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),
 
-                    # 👇 Avatar clickeable
+                    # � Ícono de notificaciones con badge
+                    ft.Container(
+                        content=ft.Stack(
+                            [
+                                ft.IconButton(
+                                    icon=ft.Icons.NOTIFICATIONS,
+                                    icon_color=ft.Colors.WHITE,
+                                    icon_size=28,
+                                    tooltip="Notificaciones de devoluciones",
+                                    on_click=ir_a_notificaciones,
+                                ),
+                                # Badge con contador
+                                ft.Container(
+                                    content=ft.Text(
+                                        str(notif_count),
+                                        size=11,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=ft.Colors.WHITE,
+                                    ),
+                                    bgcolor=ft.Colors.RED_600,
+                                    border_radius=10,
+                                    padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                    top=8,
+                                    right=8,
+                                    visible=notif_count > 0,
+                                ),
+                            ]
+                        ),
+                        width=48,
+                        height=48,
+                    ),
+
+                    # 👤 Avatar clickeable
                     ft.Container(
                         content=ft.CircleAvatar(
                             content=ft.Icon(
