@@ -170,7 +170,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 ],
                 spacing=8,
             ),
-            on_click=lambda e: navigate("/createlib"),
+            on_click=self.abrir_dialogo_crear_libro,
         )
 
         search_input = ft.TextField(
@@ -210,17 +210,14 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             column_spacing=40,
             horizontal_margin=16,
             columns=[
-                # ✅ NUEVO: Código de barras ANTES de Título
                 ft.DataColumn(label=ft.Text("Código de barras", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
 
                 ft.DataColumn(label=ft.Text("Título", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Clasificación DUI", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Categoría", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Autores", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(label=ft.Text("Descripción", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("ISBN", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Tipo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(label=ft.Text("Activo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Documentos", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Acciones", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
             ],
@@ -259,6 +256,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             libros_table.rows.clear()
             self._libros_cache = self._db.get_libros()
             aplicar_filtros()
+
+        self._mostrar_libros = mostrar_libros
 
         # =========================
         # Toggle activo/inactivo
@@ -348,11 +347,11 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                             ft.Icons.EDIT,
                             ft.Colors.ORANGE,
                             "Modificar",
-                            lambda e, i=id_libro: navigate(f"/editlib/{i}"),
+                            lambda e, i=id_libro: self.abrir_dialogo_editar_libro(i),
                         ),
                         action_button(
-                            ft.Icons.BLOCK if is_activo else ft.Icons.CHECK_CIRCLE,
-                            ft.Colors.RED if is_activo else ft.Colors.GREEN,
+                            ft.Icons.CHECK_CIRCLE if is_activo else ft.Icons.BLOCK,
+                            ft.Colors.GREEN if is_activo else ft.Colors.RED,
                             "Desactivar" if is_activo else "Activar",
                             lambda e, i=id_libro, st=is_activo: toggle_activo(i, st),
                         ),
@@ -363,9 +362,6 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 )
             )
 
-            descripcion = (libro.get("descripcion", "") or "").strip()
-            descripcion_short = (descripcion[:80] + "…") if len(descripcion) > 80 else descripcion
-
             autores = (libro.get("autores", "") or "").strip()
             autores_short = (autores[:60] + "…") if len(autores) > 60 else autores
 
@@ -374,17 +370,14 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
             return ft.DataRow(
                 cells=[
-                    # ✅ NUEVO: celda Código de barras primero
                     ft.DataCell(ft.Text(codigo_barras_short, text_align=ft.TextAlign.CENTER)),
 
                     ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("clasificacion_dui", "") or "", text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(autores_short, text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(descripcion_short, text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.CENTER)),
                     ft.DataCell(ft.Text(libro.get("tipo", ""), text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text("Sí" if is_activo else "No", text_align=ft.TextAlign.CENTER)),
                     documentos,
                     acciones,
                 ]
@@ -502,3 +495,433 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         self.controls = [ft.Row([container], expand=True)]
 
         mostrar_libros()
+
+    # ===========================
+    # Crear Libro con Diálogo
+    # ===========================
+    def abrir_dialogo_crear_libro(self, e):
+        INPUT_STYLE = dict(
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
+        )
+
+        # Campos del formulario
+        self.titulo_input = ft.TextField(label="Título *", autofocus=True, **INPUT_STYLE)
+        self.isbn_input = ft.TextField(label="ISBN", **INPUT_STYLE)
+        self.codigo_barras_input = ft.TextField(label="Código de barras", **INPUT_STYLE)
+        self.anio_input = ft.TextField(label="Año de publicación", keyboard_type=ft.KeyboardType.NUMBER, **INPUT_STYLE)
+        self.edicion_input = ft.TextField(label="Edición", **INPUT_STYLE)
+        
+        self.tipo_dd = ft.Dropdown(
+            label="Tipo *",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            options=[
+                ft.dropdown.Option("FISICO"),
+                ft.dropdown.Option("DIGITAL"),
+            ],
+        )
+
+        self.descripcion_input = ft.TextField(
+            label="Descripción",
+            multiline=True,
+            min_lines=5,
+            max_lines=8,
+            width=680,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+        )
+
+        cats = self._db.get_categorias()
+        self.categoria_dd = ft.Dropdown(
+            label="Categoría *",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            options=[
+                ft.dropdown.Option(key=str(c["id_categoria"]), text=c["nombre"])
+                for c in cats
+            ],
+        )
+
+        self.clasificacion_dui_input = ft.TextField(label="Clasificación DUI *", **INPUT_STYLE)
+        self.autores_ids_input = ft.TextField(label="IDs de Autores (separados por comas)", **INPUT_STYLE)
+
+        self.btn_guardar = ft.ElevatedButton(
+            content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
+            bgcolor="#0b495c",
+            color=ft.Colors.WHITE,
+            on_click=self.crear_libro,
+        )
+
+        header_row = ft.Row([
+            ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.BOOK, size=22, color="#1B6F7A"),
+                    bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.GREEN),
+                    width=40,
+                    height=40,
+                    border_radius=8,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Column([
+                    ft.Text("Crear libro", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text("Completa los datos del libro", size=12, color="#666")
+                ], spacing=2)
+            ], spacing=10),
+            ft.Container(
+                content=ft.Icon(ft.Icons.CLOSE, size=18, color="#666"),
+                width=36,
+                height=36,
+                alignment=ft.Alignment.CENTER,
+                on_click=self.cerrar_dialogo_libro,
+                border_radius=8
+            ),
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+
+        form_column = ft.Column([
+            # Sección: Información Básica
+            ft.Text("Información Básica", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.titulo_input,
+            ft.Row([self.tipo_dd, self.categoria_dd], spacing=12),
+            
+            # Sección: Identificadores
+            ft.Text("Identificadores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.clasificacion_dui_input,
+            ft.Row([self.isbn_input, self.codigo_barras_input], spacing=12),
+            
+            # Sección: Detalles de Publicación
+            ft.Text("Detalles de Publicación", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            ft.Row([self.anio_input, self.edicion_input], spacing=12),
+            
+            # Sección: Descripción y Autores
+            ft.Text("Descripción y Autores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.autores_ids_input,
+            self.descripcion_input,
+            
+        ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        content = ft.Column([
+            header_row,
+            ft.Divider(height=8, color="transparent"),
+            form_column,
+            ft.Divider(height=6, color="transparent"),
+            ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_libro), self.btn_guardar], alignment=ft.MainAxisAlignment.END, spacing=12)
+        ], spacing=10, scroll=ft.ScrollMode.AUTO)
+
+        self.dialog = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(width=780, padding=ft.padding.all(18), bgcolor=ft.Colors.WHITE, border_radius=12, content=content)
+        )
+
+        self._page.overlay.clear()
+        self._page.overlay.append(self.dialog)
+        self.dialog.open = True
+        self._page.update()
+
+    # ===========================
+    # Editar Libro con Diálogo
+    # ===========================
+    def abrir_dialogo_editar_libro(self, id_libro: int):
+        libro = self._db.get_libro_detalle(int(id_libro))
+        if not libro:
+            self._page.snack_bar = ft.SnackBar(ft.Text("Libro no encontrado"), bgcolor="#b71c1c")
+            self._page.snack_bar.open = True
+            self._page.update()
+            return
+
+        self._edit_libro_id = int(id_libro)
+
+        INPUT_STYLE = dict(
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            focused_border_color="#1976d2",
+            text_size=14,
+        )
+
+        self.titulo_input = ft.TextField(label="Título *", value=libro.get("titulo", ""), **INPUT_STYLE)
+        self.isbn_input = ft.TextField(label="ISBN", value=libro.get("isbn", "") or "", **INPUT_STYLE)
+        self.codigo_barras_input = ft.TextField(
+            label="Código de barras",
+            value=libro.get("codigo_barras", "") or "",
+            **INPUT_STYLE,
+        )
+        self.anio_input = ft.TextField(
+            label="Año de publicación",
+            value=str(libro.get("anio_publicacion", "")) if libro.get("anio_publicacion") else "",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            **INPUT_STYLE,
+        )
+        self.edicion_input = ft.TextField(label="Edición", value=libro.get("edicion", "") or "", **INPUT_STYLE)
+
+        self.tipo_dd = ft.Dropdown(
+            label="Tipo *",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            value=(libro.get("tipo", "") or "").upper(),
+            options=[
+                ft.dropdown.Option("FISICO"),
+                ft.dropdown.Option("DIGITAL"),
+            ],
+        )
+
+        self.descripcion_input = ft.TextField(
+            label="Descripción",
+            value=libro.get("descripcion", "") or "",
+            multiline=True,
+            min_lines=5,
+            max_lines=8,
+            width=680,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+        )
+
+        cats = self._db.get_categorias()
+        self.categoria_dd = ft.Dropdown(
+            label="Categoría *",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            value=str(libro.get("id_categoria", "")),
+            options=[
+                ft.dropdown.Option(key=str(c["id_categoria"]), text=c["nombre"])
+                for c in cats
+            ],
+        )
+
+        self.clasificacion_dui_input = ft.TextField(
+            label="Clasificación DUI *",
+            value=libro.get("clasificacion_dui", "") or "",
+            **INPUT_STYLE,
+        )
+        self.autores_ids_input = ft.TextField(
+            label="IDs de Autores (separados por comas)",
+            value=libro.get("autores_ids", "") or "",
+            **INPUT_STYLE,
+        )
+
+        self.btn_guardar = ft.ElevatedButton(
+            content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
+            bgcolor="#0b495c",
+            color=ft.Colors.WHITE,
+            on_click=self.guardar_edicion_libro,
+        )
+
+        header_row = ft.Row([
+            ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.EDIT, size=22, color="#1B6F7A"),
+                    bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.GREEN),
+                    width=40,
+                    height=40,
+                    border_radius=8,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Column([
+                    ft.Text("Editar libro", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text("Actualiza los datos del libro", size=12, color="#666")
+                ], spacing=2)
+            ], spacing=10),
+            ft.Container(
+                content=ft.Icon(ft.Icons.CLOSE, size=18, color="#666"),
+                width=36,
+                height=36,
+                alignment=ft.Alignment.CENTER,
+                on_click=self.cerrar_dialogo_libro,
+                border_radius=8,
+            ),
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+
+        form_column = ft.Column([
+            ft.Text("Información Básica", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.titulo_input,
+            ft.Row([self.tipo_dd, self.categoria_dd], spacing=12),
+
+            ft.Text("Identificadores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.clasificacion_dui_input,
+            ft.Row([self.isbn_input, self.codigo_barras_input], spacing=12),
+
+            ft.Text("Detalles de Publicación", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            ft.Row([self.anio_input, self.edicion_input], spacing=12),
+
+            ft.Text("Descripción y Autores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
+            self.autores_ids_input,
+            self.descripcion_input,
+        ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        content = ft.Column([
+            header_row,
+            ft.Divider(height=8, color="transparent"),
+            form_column,
+            ft.Divider(height=6, color="transparent"),
+            ft.Row([
+                ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_libro),
+                self.btn_guardar
+            ], alignment=ft.MainAxisAlignment.END, spacing=12)
+        ], spacing=10, scroll=ft.ScrollMode.AUTO)
+
+        self.dialog = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                width=780,
+                padding=ft.padding.all(18),
+                bgcolor=ft.Colors.WHITE,
+                border_radius=12,
+                content=content,
+            )
+        )
+
+        self._page.overlay.clear()
+        self._page.overlay.append(self.dialog)
+        self.dialog.open = True
+        self._page.update()
+
+    def guardar_edicion_libro(self, e):
+        try:
+            titulo = (self.titulo_input.value or "").strip()
+            tipo = (self.tipo_dd.value or "").strip()
+
+            if not titulo:
+                self._page.snack_bar = ft.SnackBar(ft.Text("El título es obligatorio"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            if not tipo:
+                self._page.snack_bar = ft.SnackBar(ft.Text("El tipo es obligatorio"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            if not self.categoria_dd.value:
+                self._page.snack_bar = ft.SnackBar(ft.Text("Debe seleccionar una categoría"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            clasificacion_dui = (self.clasificacion_dui_input.value or "").strip()
+            if not clasificacion_dui:
+                self._page.snack_bar = ft.SnackBar(ft.Text("La Clasificación DUI es obligatoria"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            anio = (self.anio_input.value or "").strip()
+            anio_publicacion = int(anio) if anio else None
+
+            autores_csv = (self.autores_ids_input.value or "").strip()
+            codigo_barras = (self.codigo_barras_input.value or "").strip()
+
+            self._db.update_libro(
+                id_libro=self._edit_libro_id,
+                titulo=titulo,
+                isbn=(self.isbn_input.value or "").strip(),
+                anio_publicacion=anio_publicacion,
+                edicion=(self.edicion_input.value or "").strip(),
+                tipo=tipo,
+                descripcion=(self.descripcion_input.value or "").strip(),
+                id_categoria=int(self.categoria_dd.value),
+                autores_ids_csv=autores_csv if autores_csv else None,
+                clasificacion_dui=clasificacion_dui,
+                codigo_barras=codigo_barras if codigo_barras else None,
+            )
+
+            self._page.snack_bar = ft.SnackBar(ft.Text("✅ Cambios guardados correctamente"), bgcolor="#1b5e20")
+            self._page.snack_bar.open = True
+            self.cerrar_dialogo_libro()
+            if hasattr(self, "_mostrar_libros"):
+                self._mostrar_libros()
+
+        except Exception as ex:
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"Error: {str(ex)[:150]}"), bgcolor="#b71c1c")
+            self._page.snack_bar.open = True
+            self._page.update()
+
+    def crear_libro(self, e):
+        try:
+            print("[CREATE] Iniciando crear_libro...")
+            titulo = (self.titulo_input.value or "").strip()
+            tipo = (self.tipo_dd.value or "").strip()
+
+            if not titulo:
+                self._page.snack_bar = ft.SnackBar(ft.Text("El título es obligatorio"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            if not tipo:
+                self._page.snack_bar = ft.SnackBar(ft.Text("El tipo es obligatorio"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            if not self.categoria_dd.value:
+                self._page.snack_bar = ft.SnackBar(ft.Text("Debe seleccionar una categoría"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            clasificacion_dui = (self.clasificacion_dui_input.value or "").strip()
+            if not clasificacion_dui:
+                self._page.snack_bar = ft.SnackBar(ft.Text("La Clasificación DUI es obligatoria"), bgcolor="#b71c1c")
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
+            anio = (self.anio_input.value or "").strip()
+            anio_publicacion = int(anio) if anio else None
+
+            autores_csv = (self.autores_ids_input.value or "").strip()
+
+            print(f"[CREATE] Parámetros:")
+            print(f"  - titulo: {titulo}")
+            print(f"  - tipo: {tipo}")
+            print(f"  - id_categoria: {self.categoria_dd.value}")
+            print(f"  - clasificacion_dui: {clasificacion_dui}")
+            print(f"  - anio_publicacion: {anio_publicacion}")
+
+            print("[CREATE] Llamando a _db.crear_libro()...")
+            resultado = self._db.crear_libro(
+                titulo=titulo,
+                isbn=(self.isbn_input.value or "").strip(),
+                anio_publicacion=anio_publicacion,
+                edicion=(self.edicion_input.value or "").strip(),
+                tipo=tipo,
+                descripcion=(self.descripcion_input.value or "").strip(),
+                id_categoria=int(self.categoria_dd.value),
+                activo=1,
+                autores_ids_csv=autores_csv if autores_csv else None,
+                clasificacion_dui=clasificacion_dui,
+                codigo_barras=None,
+            )
+            print(f"[CREATE] Resultado: {resultado}")
+
+            self._page.snack_bar = ft.SnackBar(ft.Text("✅ Libro guardado correctamente"), bgcolor="#1b5e20")
+            self._page.snack_bar.open = True
+            self.cerrar_dialogo_libro()
+
+            if hasattr(self, "_mostrar_libros"):
+                self._mostrar_libros()
+            
+        except Exception as ex:
+            print(f"[CREATE] ERROR: {ex}")
+            import traceback
+            traceback.print_exc()
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"Error: {str(ex)[:150]}"), bgcolor="#b71c1c")
+            self._page.snack_bar.open = True
+            self._page.update()
+
+    def cerrar_dialogo_libro(self, e=None):
+        if hasattr(self, 'dialog') and self.dialog:
+            self.dialog.open = False
+            self._page.update()

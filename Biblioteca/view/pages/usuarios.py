@@ -339,9 +339,9 @@ class UsuariosPage(ft.Column):
                         raise ValueError("No se encontró ID de usuario para edición")
 
                     print(f"[EDIT] Actualizando usuario ID={uid}, nombre={nombre}")
-                    grupo_val = bool(self.grupo_input.value) if self.grupo_input else False
-                    discapacidad_val = bool(self.discapacidad_input.value) if self.discapacidad_input else False
-                    activo_val = bool(self.activo_input.value) if self.activo_input else True
+                    grupo_val = int(bool(self.grupo_input.value)) if self.grupo_input else 0
+                    discapacidad_val = int(bool(self.discapacidad_input.value)) if self.discapacidad_input else 0
+                    activo_val = int(bool(self.activo_input.value)) if self.activo_input else 1
                     print(f"[EDIT] Valores checkboxes: grupo={grupo_val}, discapacidad={discapacidad_val}, activo={activo_val}")
                     print(f"[EDIT] Valores checkboxes raw: grupo_input.value={self.grupo_input.value}, discapacidad_input.value={self.discapacidad_input.value}, activo_input.value={self.activo_input.value}")
                     
@@ -370,7 +370,7 @@ class UsuariosPage(ft.Column):
                         self.db.set_usuarios(
                             nombre_completo=nombre,
                             identificacion=self.identificacion_input.value or "",
-                            discapacidad=bool(self.discapacidad_input.value) if self.discapacidad_input else False,
+                            discapacidad=int(bool(self.discapacidad_input.value)) if self.discapacidad_input else 0,
                             provincia=provincia_value,
                             canton=canton_text,
                             distrito=distrito_text,
@@ -378,9 +378,9 @@ class UsuariosPage(ft.Column):
                             sexo=self.sexo_input.value or "",
                             curso=self.curso_input.value or "",
                             anio=anio,
-                            grupo=bool(self.grupo_input.value) if self.grupo_input else False,
+                            grupo=int(bool(self.grupo_input.value)) if self.grupo_input else 0,
                             telefono=self.telefono_input.value or "",
-                            activo=bool(self.activo_input.value) if self.activo_input else True,
+                            activo=int(bool(self.activo_input.value)) if self.activo_input else 1,
                             comentario=self.comentario_input.value or "",
                         )
                         print(f"[CREATE] Usuario creado exitosamente")

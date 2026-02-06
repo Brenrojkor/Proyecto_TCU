@@ -52,6 +52,108 @@ class Database:
             (nombre, apellido if apellido else None, nacionalidad if nacionalidad else None)
         )
         self.conn.commit()
+        
+    def set_usuarios(self, nombre_completo, identificacion, discapacidad,
+                    provincia, canton, distrito, rango_edad,
+                    sexo, curso, anio, grupo, telefono, activo, comentario):
+        """Crea un usuario nuevo."""
+        try:
+            self.cursor.execute(
+                """EXEC dbo.CrearUsuarioBiblioteca
+                @nombre_completo = ?,
+                @identificacion = ?,
+                @discapacidad = ?,
+                @provincia = ?,
+                @canton = ?,
+                @distrito = ?,
+                @rango_edad = ?,
+                @sexo = ?,
+                @curso = ?,
+                @anio = ?,
+                @grupo = ?,
+                @telefono = ?,
+                @activo = ?,
+                @comentario = ?""",
+                (
+                    nombre_completo,
+                    identificacion,
+                    discapacidad,
+                    provincia,
+                    canton,
+                    distrito,
+                    rango_edad,
+                    sexo,
+                    curso,
+                    anio,
+                    grupo,
+                    telefono,
+                    activo,
+                    comentario,
+                ),
+            )
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            raise e
+
+
+    def update_usuario_biblioteca(
+        self,
+        id_usuario,
+        nombre_completo,
+        identificacion,
+        discapacidad,
+        provincia,
+        canton,
+        distrito,
+        rango_edad,
+        sexo,
+        curso,
+        anio,
+        grupo,
+        telefono=None,
+        activo=1,
+        comentario=None
+    ):
+        self.cursor.execute(
+            """
+            EXEC sp_EditarUsuarioBiblioteca
+                @id_usuario = ?,
+                @nombre_completo = ?,
+                @identificacion = ?,
+                @discapacidad = ?,
+                @provincia = ?,
+                @canton = ?,
+                @distrito = ?,
+                @rango_edad = ?,
+                @sexo = ?,
+                @curso = ?,
+                @anio = ?,
+                @grupo = ?,
+                @telefono = ?,
+                @activo = ?,
+                @comentario = ?
+            """,
+            (
+                id_usuario,
+                nombre_completo,
+                identificacion,
+                discapacidad,
+                provincia,
+                canton,
+                distrito,
+                rango_edad,
+                sexo,
+                curso,
+                anio,
+                grupo,
+                telefono if telefono else None,
+                activo,
+                comentario if comentario else None
+            )
+        )
+        self.conn.commit()
+        
 
     def update_categoria(self, id_categoria, nombre, descripcion):
         self.cursor.execute(
@@ -69,40 +171,45 @@ class Database:
 
     def crear_libro(
         self,
-    titulo,
-    isbn,
-    anio_publicacion,
-    edicion,
-    tipo,
-    descripcion,
-    id_categoria,
-    activo=1,
-    autores_ids_csv=None,
-    clasificacion_dui=None,
-    codigo_barras=None,   # ✅ NUEVO
-):
-        param_str = """
+        titulo,
+        isbn,
+        anio_publicacion,
+        edicion,
+        tipo,
+        descripcion,
+        id_categoria,
+        activo=1,
+        autores_ids_csv=None,
+        clasificacion_dui=None,
+        codigo_barras=None,
+    ):
+        print("[DB] crear_libro() iniciado")
+        print(f"[DB] Parámetros: titulo={titulo}, tipo={tipo}, categoria={id_categoria}")
+        
+        sql_query = """EXEC sp_CrearLibro 
         @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
         @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
-        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?
-    """
+        @autores_ids_csv = ?, @clasificacion_dui = ?"""
 
         values = [
-        titulo,
-        isbn if isbn else None,
-        anio_publicacion,
-        edicion if edicion else None,
-        tipo,
-        descripcion if descripcion else None,
-        id_categoria,
-        activo,
-        autores_ids_csv,
-        clasificacion_dui,
-        codigo_barras if codigo_barras else None,  # ✅ NUEVO
-    ]
+            titulo,
+            isbn if isbn else None,
+            anio_publicacion,
+            edicion if edicion else None,
+            tipo,
+            descripcion if descripcion else None,
+            id_categoria,
+            activo,
+            autores_ids_csv,
+            clasificacion_dui,
+        ]
 
-        self.cursor.execute(f"EXEC sp_CrearLibro {param_str}", values)
+        print(f"[DB] SQL: {sql_query}")
+        print(f"[DB] Values: {values}")
+        
+        self.cursor.execute(sql_query, values)
         self.conn.commit()
+        print("[DB] Libro creado y guardado exitosamente")
 
 
     # =========================
@@ -261,7 +368,8 @@ class Database:
         self.conn.commit()
 
     def editar_contacto(self, id_contacto, tipo, institucion, nombre=None, correo=None, telefono=None, descripcion=None):
-        self.cursor.execute(
+        cur = self.conn.cursor()
+        cur.execute(
             "EXEC dbo.sp_EditarContacto @id_contacto = ?, @tipo = ?, @institucion = ?, @nombre = ?, @correo = ?, @telefono = ?, @descripcion = ?",
             (
                 int(id_contacto),
@@ -274,6 +382,7 @@ class Database:
             )
         )
         self.conn.commit()
+        cur.close()
 
     def eliminar_contacto(self, id_contacto: int):
         self.cursor.execute(
