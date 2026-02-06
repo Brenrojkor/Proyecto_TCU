@@ -147,25 +147,43 @@ class AutoresPage(ft.Column):
             width=320,
         )
 
-        self.dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(titulo),
+        content = ft.Container(
+            width=520,
+            height=320,
+            padding=ft.padding.all(14),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.with_opacity(0.06, ft.Colors.BLACK)),
             content=ft.Column(
-                [self.nombre_input, self.apellido_input, self.nacionalidad_input],
-                spacing=12,
-                tight=True,
+                [
+                    ft.Row([
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.CREATE, size=22, color="#1B6F7A"),
+                                bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.GREEN),
+                                width=40,
+                                height=40,
+                                border_radius=8,
+                                alignment=ft.Alignment.CENTER,
+                            ),
+                            ft.Column([ft.Text(titulo, size=16, weight=ft.FontWeight.BOLD), ft.Text("Información del autor", size=12, color="#666")], spacing=2),
+                        ], spacing=10),
+                        ft.Container(content=ft.Icon(ft.Icons.CLOSE, size=16, color="#666"), width=32, height=32, alignment=ft.Alignment.CENTER, on_click=self.cerrar_dialogo, border_radius=8),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+
+                    ft.Divider(height=6, color="transparent"),
+
+                    ft.Column([self.nombre_input, self.apellido_input, self.nacionalidad_input], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+
+                    ft.Divider(height=6, color="transparent"),
+
+                    ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo), ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8), bgcolor="#0b495c", color=ft.Colors.WHITE, on_click=self.guardar_autor)], alignment=ft.MainAxisAlignment.END, spacing=10),
+                ],
+                spacing=8,
             ),
-            actions=[
-                ft.TextButton("Cancelar", on_click=self.cerrar_dialogo),
-                ft.ElevatedButton(
-                    "Guardar",
-                    icon=ft.Icons.CHECK,
-                    on_click=self.guardar_autor,
-                ),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
         )
 
+        self.dialog = ft.AlertDialog(modal=True, content=content)
         self._page.overlay.clear()
         self._page.overlay.append(self.dialog)
         self.dialog.open = True
@@ -223,8 +241,11 @@ class AutoresPage(ft.Column):
         nacionalidad = self.nacionalidad_input.value.strip()
 
         if not nombre:
-            self.mostrar_error("El nombre es obligatorio.")
+            self.nombre_input.error_text = "El nombre es obligatorio"
+            self._page.update()
             return
+        else:
+            self.nombre_input.error_text = None
 
         if self.autor_editando:
             self.db.update_autor(
@@ -235,6 +256,10 @@ class AutoresPage(ft.Column):
             )
         else:
             self.db.set_autores(nombre, apellido, nacionalidad)
+
+        # feedback
+        self._page.snack_bar = ft.SnackBar(ft.Text("✅ Autor guardado correctamente"), bgcolor=ft.Colors.GREEN_500)
+        self._page.snack_bar.open = True
 
         self.cerrar_dialogo()
         self.mostrar_autores()

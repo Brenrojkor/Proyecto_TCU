@@ -162,92 +162,126 @@ class DetalleLibroPage(ft.Column):
                 border_radius=8,
             )
 
-        # Header
+        # Header (coherente con el resto de la app)
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=15),
+            padding=ft.padding.symmetric(horizontal=20, vertical=14),
             bgcolor="#aedff4",
             border_radius=8,
             content=ft.Row(
                 [
-                    ft.Icon(ft.Icons.INFO, color="#38638f", size=32),
-                    ft.Text("Detalles del Libro", size=24, weight=ft.FontWeight.BOLD, color="#38638f"),
+                    ft.Row([
+                        ft.Icon(ft.Icons.INFO, color="#38638f", size=28),
+                        ft.Column([
+                            ft.Text("Detalles del Libro", size=20, weight=ft.FontWeight.BOLD, color="#38638f"),
+                            ft.Text(libro.get("titulo", "")[0:80], size=12, color="#38638f", opacity=0.8),
+                        ], spacing=2),
+                    ], spacing=12),
+
+                    # acciones en el header (compactas)
+                    ft.Row([
+                        ft.TextButton("Volver", on_click=lambda e: navigate("/")),
+                        ft.ElevatedButton("Editar", icon=ft.Icons.EDIT, bgcolor=ft.Colors.ORANGE, color=ft.Colors.WHITE, on_click=lambda e: navigate(f"/editlib/{id_libro}")),
+                    ], spacing=8),
                 ],
-                spacing=15,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
         )
 
-        # Action buttons
-        btn_volver = ft.ElevatedButton(
-            "Volver a libros",
-            on_click=lambda e: navigate("/"),
-            icon=ft.Icons.ARROW_BACK,
-        )
-
-        btn_editar = ft.ElevatedButton(
-            "Editar libro",
-            on_click=lambda e: navigate(f"/editlib/{id_libro}"),
-            icon=ft.Icons.EDIT,
-            style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=ft.Colors.ORANGE,
-            ),
-        )
-
-        # Main container
-        content = ft.Column(
-            [
-                header,
-                ft.Container(
-                    content=ft.Column(
-                        [
+        # Tarjeta principal con sombra (alineada al estilo de otras páginas)
+        card = ft.Container(
+            width=980,
+            padding=24,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border=ft.border.all(1, "#d0d7de"),
+            shadow=ft.BoxShadow(spread_radius=0, blur_radius=12, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
+            content=ft.Row(
+                [
+                    # Columna izquierda: información principal (expandible)
+                    ft.Container(
+                        content=ft.Column([
                             titulo_text,
-                            ft.Divider(height=20, color="transparent"),
-                            ft.Text("Información General", weight=ft.FontWeight.BOLD, size=16),
-                            ft.Column(
-                                [
-                                    categoria_text,
-                                    isbn_text,
-                                    tipo_text,
-                                    año_text,
-                                    edicion_text,
-                                    activo_text,
-                                ],
-                                spacing=8,
-                            ),
-                            ft.Divider(height=20, color="transparent"),
+                            ft.Divider(height=6, color="transparent"),
+                            ft.Row([
+                                ft.Column([
+                                    ft.Text("Información General", weight=ft.FontWeight.BOLD, size=16),
+                                    ft.Divider(height=8, color="transparent"),
+                                    ft.Column([
+                                        categoria_text,
+                                        isbn_text,
+                                        tipo_text,
+                                        año_text,
+                                        edicion_text,
+                                        activo_text,
+                                    ], spacing=8),
+                                ]),
+                            ], alignment=ft.MainAxisAlignment.START),
+
+                            ft.Divider(height=18, color="transparent"),
+
                             ft.Text("Descripción", weight=ft.FontWeight.BOLD, size=16),
+                            ft.Divider(height=8, color="transparent"),
                             ft.Container(
                                 content=descripcion_text,
                                 padding=12,
                                 bgcolor="#f5f5f5",
                                 border_radius=8,
                             ),
-                            ft.Divider(height=20, color="transparent"),
-                            ft.Text("Documento", weight=ft.FontWeight.BOLD, size=16),
-                            pdf_section,
-                            ft.Divider(height=30, color="transparent"),
-                        ],
-                        spacing=12,
-                        scroll=ft.ScrollMode.AUTO,
+
+                            ft.Divider(height=8, color="transparent"),
+                        ], spacing=12),
+                        expand=True,
                     ),
-                    padding=20,
-                ),
-                ft.Row(
-                    [btn_volver, btn_editar],
-                    spacing=10,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
-            ],
-            spacing=10,
-            expand=True,
+
+                    # Columna derecha: PDF / metadata / acciones rápidas
+                    ft.Container(
+                        width=340,
+                        padding=8,
+                        content=ft.Column([
+                            ft.Text("Información rápida", weight=ft.FontWeight.BOLD, size=14),
+                            ft.Divider(height=8, color="transparent"),
+                            pdf_section,
+                            ft.Divider(height=12, color="transparent"),
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Text("Autores", size=13, weight=ft.FontWeight.BOLD),
+                                    ft.Text(libro.get("autores", "N/A"), size=13, color=ft.Colors.GREY_700),
+                                    ft.Divider(height=8, color="transparent"),
+                                    ft.Text("Ubicación", size=13, weight=ft.FontWeight.BOLD),
+                                    ft.Text(libro.get("ubicacion", "N/A"), size=13, color=ft.Colors.GREY_700),
+                                ], spacing=8),
+                                padding=10,
+                                bgcolor="#fafafa",
+                                border_radius=8,
+                            ),
+
+                            ft.Divider(height=12, color="transparent"),
+
+                            ft.Row([
+                                ft.ElevatedButton(
+                                    "Descargar PDF",
+                                    icon=ft.Icons.DOWNLOAD,
+                                    on_click=lambda e: open_file_default_app(pdf_info.get("nombre_archivo")) if tiene_pdf else None,
+                                    disabled=not tiene_pdf,
+                                ),
+                                ft.TextButton("Más opciones", on_click=lambda e: snack("No hay más opciones")),
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+
+                        ], spacing=12),
+                    ),
+                ],
+                spacing=20,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            ),
         )
 
-        container = ft.Container(
-            content=content,
-            padding=20,
-            bgcolor=ft.Colors.WHITE,
-            border_radius=8,
-            expand=True,
-        )
+        # Composición final
+        wrapper = ft.Column([
+            header,
+            ft.Divider(height=12, color="transparent"),
+            ft.Row([card], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Divider(height=18, color="transparent"),
+        ], spacing=8, expand=True)
 
-        self.controls = [ft.Row([container], expand=True)]
+        # Asignar controles
+        self.controls = [wrapper]
