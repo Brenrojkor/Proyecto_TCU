@@ -46,9 +46,8 @@ class UsuariosPage(ft.Column):
                 ft.DataColumn(ft.Text("Nombre completo", weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(ft.Text("Identificación", weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(ft.Text("Provincia", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Cantón", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Distrito", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Activo", weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(ft.Text("Teléfono", weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(ft.Text("Año", weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#0d47a1")),
             ],
             rows=[],
@@ -76,6 +75,20 @@ class UsuariosPage(ft.Column):
 
         self.controls = [ft.Row([container], alignment=ft.MainAxisAlignment.CENTER, expand=True)]
         self.mostrar_usuarios()
+
+    def snack(self, msg: str):
+        self._page.snack_bar = ft.SnackBar(ft.Text(msg))
+        self._page.snack_bar.open = True
+        self._page.update()
+
+    def toggle_activo(self, id_usuario: int, estado_actual: bool):
+        nuevo_estado = 0 if estado_actual else 1
+        try:
+            self.db.set_usuario_activo(id_usuario, nuevo_estado)
+            self.snack("Usuario activado ✅" if nuevo_estado == 1 else "Usuario desactivado ✅")
+            self.mostrar_usuarios()
+        except Exception as ex:
+            self.snack(f"Error al actualizar estado: {ex}")
 
     # Botón de acción para tabla
     def action_button(self, icon, bgcolor, tooltip, on_click=None):
@@ -110,7 +123,6 @@ class UsuariosPage(ft.Column):
         self.anio_input = ft.TextField(label="Año", value="", **TINY_INPUT)
         self.discapacidad_input = ft.Checkbox(label="Discapacidad", value=False)
         self.grupo_input = ft.Checkbox(label="Grupo", value=False)
-        self.activo_input = ft.Checkbox(label="Activo", value=True)
         self.telefono_input = ft.TextField(label="Teléfono", value="", **INPUT_STYLE)
         self.comentario_input = ft.TextField(label="Comentario", value="", width=520, multiline=True, min_lines=2, max_lines=4, bgcolor="#f5f7fa", border_radius=8)
 
@@ -132,7 +144,7 @@ class UsuariosPage(ft.Column):
             ft.Row([self.identificacion_input, self.telefono_input], spacing=12),
             ft.Row([self.provincia_input, ft.Container(content=self.canton_input, width=SHORT_INPUT['width']), ft.Container(content=self.distrito_input, width=SHORT_INPUT['width'])], spacing=12),
             ft.Row([self.rango_edad_input, self.sexo_input, self.anio_input, self.curso_input], spacing=12),
-            ft.Row([self.discapacidad_input, self.grupo_input, self.activo_input], spacing=20),
+            ft.Row([self.discapacidad_input, self.grupo_input], spacing=20),
             self.comentario_input
         ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -178,10 +190,6 @@ class UsuariosPage(ft.Column):
             value=bool(usuario.get("grupo"))
         )
 
-        self.activo_input = ft.Checkbox(
-            label="Activo",
-            value=bool(usuario.get("activo", True))
-        )
         self.telefono_input = ft.TextField(label="Teléfono", value=usuario.get("telefono", ""), **INPUT_STYLE)
         self.comentario_input = ft.TextField(label="Comentario", value=usuario.get("comentario", ""), width=520, multiline=True, min_lines=2, max_lines=4, bgcolor="#f5f7fa", border_radius=8)
 
@@ -192,18 +200,7 @@ class UsuariosPage(ft.Column):
             on_click=self.guardar_usuario,
         )
 
-        # Prefill provincia y cantón directamente (sin carga asincrónica)
-        prov_text = usuario.get("provincia") or usuario.get("provincia_nombre")
-        if prov_text:
-            self.provincia_input.value = prov_text
-        
-        canton_text = usuario.get("canton")
-        if canton_text:
-            self.canton_input.value = canton_text
-            
-        distrito_text = usuario.get("distrito")
-        if distrito_text:
-            self.distrito_input.value = distrito_text
+  
 
         header_row = ft.Row([
             ft.Row([ft.Container(content=ft.Icon(ft.Icons.PERSON, size=22, color="#1B6F7A"), bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.GREEN), width=40, height=40, border_radius=8, alignment=ft.Alignment.CENTER),
@@ -216,7 +213,7 @@ class UsuariosPage(ft.Column):
             ft.Row([self.identificacion_input, self.telefono_input], spacing=12),
             ft.Row([self.provincia_input, ft.Container(content=self.canton_input, width=SHORT_INPUT['width']), ft.Container(content=self.distrito_input, width=SHORT_INPUT['width'])], spacing=12),
             ft.Row([self.rango_edad_input, self.sexo_input, self.anio_input, self.curso_input], spacing=12),
-            ft.Row([self.discapacidad_input, self.grupo_input, self.activo_input], spacing=20),
+            ft.Row([self.discapacidad_input, self.grupo_input], spacing=20),
             self.comentario_input
         ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -235,55 +232,7 @@ class UsuariosPage(ft.Column):
         self.dialog.open = True
         self._page.update()
 
-    # Helpers para carga segura de cantones y distritos
-    def _safe_cargar_cantones(self, provincia_key, select_text_if_any=None):
-        rows = self._cargar_cantones(provincia_key) or []
-        if len(rows) == 1:
-            self.canton_input.value = rows[0]
-            self._cargar_distritos(rows[0])
-        elif select_text_if_any:
-            self.canton_input.value = select_text_if_any
-            self._cargar_distritos(select_text_if_any)
-        self._page.update()
-        
-
-    def _cargar_cantones(self, provincia_key):
-        try:
-            rows = self.db.get_cantones_por_provincia(provincia_key) or []
-            names = []
-            for r in rows:
-                text = r.get("nombre") or r.get("canton") or str(r.get("id_canton") or r.get("id") or "")
-                if text:
-                    names.append(text)
-            self._last_cantones = names
-            if len(names) == 1 and not (self.canton_input.value or "").strip():
-                self.canton_input.value = names[0]
-            return names
-        except Exception:
-            self._last_cantones = []
-            return []
-        finally:
-            self._page.update()
-
-    def _cargar_distritos(self, canton_identifier_or_name, select_text_if_any=None):
-        try:
-            rows = self.db.get_distritos_por_canton(canton_identifier_or_name) or []
-            names = []
-            for r in rows:
-                text = r.get("nombre") or r.get("distrito") or str(r.get("id_distrito") or r.get("id") or "")
-                if text:
-                    names.append(text)
-            self._last_distritos = names
-            if len(names) == 1 and not (self.distrito_input.value or "").strip():
-                self.distrito_input.value = names[0]
-            if select_text_if_any:
-                self.distrito_input.value = select_text_if_any
-            return names
-        except Exception:
-            self._last_distritos = []
-            return []
-        finally:
-            self._page.update()
+    
 
     def guardar_usuario(self, e=None):
         print(f"[DEBUG] guardar_usuario llamado, usuario_editando={self.usuario_editando}")
@@ -341,9 +290,7 @@ class UsuariosPage(ft.Column):
                     print(f"[EDIT] Actualizando usuario ID={uid}, nombre={nombre}")
                     grupo_val = int(bool(self.grupo_input.value)) if self.grupo_input else 0
                     discapacidad_val = int(bool(self.discapacidad_input.value)) if self.discapacidad_input else 0
-                    activo_val = int(bool(self.activo_input.value)) if self.activo_input else 1
-                    print(f"[EDIT] Valores checkboxes: grupo={grupo_val}, discapacidad={discapacidad_val}, activo={activo_val}")
-                    print(f"[EDIT] Valores checkboxes raw: grupo_input.value={self.grupo_input.value}, discapacidad_input.value={self.discapacidad_input.value}, activo_input.value={self.activo_input.value}")
+                    print(f"[EDIT] Valores checkboxes: grupo={grupo_val}, discapacidad={discapacidad_val}")
                     
                     self.db.update_usuario_biblioteca(
                         uid,
@@ -359,7 +306,7 @@ class UsuariosPage(ft.Column):
                         anio,
                         grupo_val,
                         self.telefono_input.value or "",
-                        activo_val,
+                        1,
                         self.comentario_input.value or "",
                     )
                     print(f"[EDIT] Usuario actualizado exitosamente")
@@ -380,7 +327,7 @@ class UsuariosPage(ft.Column):
                             anio=anio,
                             grupo=int(bool(self.grupo_input.value)) if self.grupo_input else 0,
                             telefono=self.telefono_input.value or "",
-                            activo=int(bool(self.activo_input.value)) if self.activo_input else 1,
+                            activo=1,
                             comentario=self.comentario_input.value or "",
                         )
                         print(f"[CREATE] Usuario creado exitosamente")
@@ -431,23 +378,59 @@ class UsuariosPage(ft.Column):
 
     # Mostrar usuarios
     def mostrar_usuarios(self):
+        # Función para crear celdas con links (identificación y teléfono)
+        def link_cell(text_value: str, url: str):
+            if not text_value:
+                return ft.DataCell(ft.Text(""))
+            return ft.DataCell(
+                ft.TextButton(
+                    text_value,
+                    on_click=lambda e: self._page.launch_url(url),
+                    style=ft.ButtonStyle(
+                        padding=0,
+                        color=ft.Colors.BLUE_700,
+                    ),
+                )
+            )
+
         self.usuarios_table.rows.clear()
         filtro = (self.search_input.value or "").lower()
         for usuario in self.db.get_usuarios():
             texto = f'{usuario["nombre_completo"]} {usuario.get("identificacion","")}'.lower()
             if filtro and filtro not in texto:
                 continue
+            
+            # Obtener estado actual del usuario
+            activo_value = usuario.get("activo")
+            is_activo = bool(activo_value) and str(activo_value).lower() not in ("0", "false")
+            
+            # Preparar identificación y teléfono para links
+            identificacion_val = (usuario.get("identificacion", "") or "").strip()
+            telefono_val = (usuario.get("telefono", "") or "").strip()
+            whatsapp_num = "".join([ch for ch in telefono_val if ch.isdigit()])
+            whatsapp_url = f"https://wa.me/{whatsapp_num}" if whatsapp_num else ""
+            
             self.usuarios_table.rows.append(
                 ft.DataRow(cells=[
                     ft.DataCell(ft.Text(usuario["nombre_completo"])),
-                    ft.DataCell(ft.Text(usuario.get("identificacion", ""))),
+                    link_cell(identificacion_val, f"tel:{identificacion_val}" if identificacion_val else ""),
                     ft.DataCell(ft.Text(usuario.get("provincia", ""))),
-                    ft.DataCell(ft.Text(usuario.get("canton", ""))),
-                    ft.DataCell(ft.Text(usuario.get("distrito", ""))),
-                    ft.DataCell(ft.Text("Sí" if usuario.get("activo", True) else "No")),
+                    link_cell(telefono_val, whatsapp_url),
+                    ft.DataCell(ft.Text(str(usuario.get("anio", "")))),
                     ft.DataCell(ft.Row([
+                        self.action_button(
+                            ft.Icons.VISIBILITY,
+                            ft.Colors.BLUE,
+                            "Detalles",
+                            lambda e, id=usuario["id_usuario"]: self.navigate(f"/detalleusuario/{id}")
+                        ),
                         self.action_button(ft.Icons.EDIT, ft.Colors.ORANGE, "Editar", lambda e, u=usuario: self.abrir_dialogo_editar(u)),
-                        self.action_button(ft.Icons.BLOCK, ft.Colors.RED, "Desactivar")
+                        self.action_button(
+                            ft.Icons.CHECK_CIRCLE if is_activo else ft.Icons.BLOCK,
+                            ft.Colors.GREEN if is_activo else ft.Colors.RED,
+                            "Desactivar" if is_activo else "Activar",
+                            lambda e, id=usuario["id_usuario"], st=is_activo: self.toggle_activo(id, st)
+                        ),
                     ], spacing=10, alignment=ft.MainAxisAlignment.CENTER))
                 ])
             )

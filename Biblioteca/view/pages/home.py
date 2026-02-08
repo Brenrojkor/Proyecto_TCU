@@ -497,6 +497,158 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         mostrar_libros()
 
     # ===========================
+    # Métodos auxiliares para autores (Crear)
+    # ===========================
+    def actualizar_dropdown_autores_crear(self):
+        self.autores_dropdown.options = [
+            ft.dropdown.Option(key=str(a.get("id_autor")), text=a.get("nombre_completo", "Sin nombre"))
+            for a in self.autores_todos
+        ]
+        if hasattr(self, '_page'):
+            self._page.update()
+    
+    def filtrar_autores_crear(self, e):
+        busqueda = (self.buscar_autor_input.value or "").strip().lower()
+        if not busqueda:
+            self.actualizar_dropdown_autores_crear()
+            return
+        
+        autores_filtrados = [
+            a for a in self.autores_todos
+            if busqueda in a.get("nombre_completo", "").lower()
+        ]
+        
+        self.autores_dropdown.options = [
+            ft.dropdown.Option(key=str(a.get("id_autor")), text=a.get("nombre_completo", "Sin nombre"))
+            for a in autores_filtrados
+        ]
+        self._page.update()
+    
+    def agregar_autor_crear(self, e):
+        if not self.autores_dropdown.value:
+            return
+        
+        autor_id = self.autores_dropdown.value
+        # Verificar si ya está agregado
+        if any(a["id"] == autor_id for a in self.autores_seleccionados):
+            return
+        
+        # Buscar el nombre del autor
+        autor = next((a for a in self.autores_todos if str(a.get("id_autor")) == autor_id), None)
+        if not autor:
+            return
+        
+        autor_nombre = autor.get("nombre_completo", "Sin nombre")
+        self.autores_seleccionados.append({"id": autor_id, "nombre": autor_nombre})
+        
+        # Actualizar la vista
+        self.actualizar_lista_autores_seleccionados_crear()
+    
+    def remover_autor_crear(self, autor_id):
+        self.autores_seleccionados = [a for a in self.autores_seleccionados if a["id"] != autor_id]
+        self.actualizar_lista_autores_seleccionados_crear()
+    
+    def actualizar_lista_autores_seleccionados_crear(self):
+        self.autores_seleccionados_column.controls.clear()
+        
+        for autor in self.autores_seleccionados:
+            self.autores_seleccionados_column.controls.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(autor["nombre"], size=13),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_size=16,
+                            icon_color=ft.Colors.RED,
+                            tooltip="Remover",
+                            on_click=lambda e, aid=autor["id"]: self.remover_autor_crear(aid),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    padding=8,
+                    bgcolor="#e3f2fd",
+                    border_radius=6,
+                )
+            )
+        
+        self._page.update()
+    
+    # Helper methods para editar libro - Sistema de autores
+    def actualizar_dropdown_autores_editar(self):
+        """Actualiza el dropdown con la lista completa de autores para editar"""
+        self.autores_dropdown.options = [
+            ft.dropdown.Option(key=str(autor.get("id_autor")), text=autor.get("nombre_completo", "Sin nombre"))
+            for autor in self.autores_todos
+        ]
+    
+    def filtrar_autores_editar(self, e):
+        """Filtra el dropdown de autores según el texto de búsqueda para editar"""
+        busqueda = self.buscar_autor_input.value.lower()
+        if busqueda:
+            self.autores_dropdown.options = [
+                ft.dropdown.Option(key=str(autor.get("id_autor")), text=autor.get("nombre_completo", "Sin nombre"))
+                for autor in self.autores_todos
+                if busqueda in autor.get("nombre_completo", "").lower()
+            ]
+        else:
+            self.actualizar_dropdown_autores_editar()
+        
+        self._page.update()
+    
+    def agregar_autor_editar(self, e):
+        """Agrega el autor seleccionado en el dropdown a la lista de seleccionados para editar"""
+        if not self.autores_dropdown.value:
+            return
+        
+        autor_id = self.autores_dropdown.value
+        
+        # Verificar si ya está agregado
+        if any(a["id"] == autor_id for a in self.autores_seleccionados):
+            self.snack("Este autor ya fue agregado", "warning")
+            return
+        
+        # Buscar el nombre del autor
+        autor = next((a for a in self.autores_todos if str(a.get("id_autor")) == autor_id), None)
+        if autor:
+            self.autores_seleccionados.append({
+                "id": autor_id,
+                "nombre": autor.get("nombre_completo", "Sin nombre")
+            })
+            self.actualizar_lista_autores_seleccionados_editar()
+            self.buscar_autor_input.value = ""
+            self.autores_dropdown.value = None
+            self.actualizar_dropdown_autores_editar()
+    
+    def remover_autor_editar(self, autor_id):
+        """Remueve un autor de la lista de seleccionados para editar"""
+        self.autores_seleccionados = [a for a in self.autores_seleccionados if a["id"] != autor_id]
+        self.actualizar_lista_autores_seleccionados_editar()
+    
+    def actualizar_lista_autores_seleccionados_editar(self):
+        """Actualiza la lista visual de autores seleccionados para editar"""
+        self.autores_seleccionados_column.controls.clear()
+        
+        for autor in self.autores_seleccionados:
+            self.autores_seleccionados_column.controls.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(autor["nombre"], size=13),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_size=16,
+                            icon_color=ft.Colors.RED,
+                            tooltip="Remover",
+                            on_click=lambda e, aid=autor["id"]: self.remover_autor_editar(aid),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    padding=8,
+                    bgcolor="#e3f2fd",
+                    border_radius=6,
+                )
+            )
+        
+        self._page.update()
+
+    # ===========================
     # Crear Libro con Diálogo
     # ===========================
     def abrir_dialogo_crear_libro(self, e):
@@ -551,7 +703,55 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         )
 
         self.clasificacion_dui_input = ft.TextField(label="Clasificación DUI *", **INPUT_STYLE)
-        self.autores_ids_input = ft.TextField(label="IDs de Autores (separados por comas)", **INPUT_STYLE)
+        
+        # Sistema de búsqueda y selección de autores
+        self.autores_todos = self._db.get_autores()
+        self.autores_seleccionados = []  # Lista de {id, nombre}
+        
+        self.buscar_autor_input = ft.TextField(
+            label="Buscar autor",
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            text_size=14,
+            on_change=self.filtrar_autores_crear,
+        )
+        
+        self.autores_dropdown = ft.Dropdown(
+            label="Selecciona un autor",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            options=[],
+        )
+        
+        self.btn_agregar_autor = ft.IconButton(
+            icon=ft.Icons.ADD,
+            bgcolor="#1976d2",
+            icon_color=ft.Colors.WHITE,
+            tooltip="Agregar autor",
+            on_click=self.agregar_autor_crear,
+        )
+        
+        self.autores_seleccionados_column = ft.Column(spacing=4)
+        
+        self.autores_container = ft.Container(
+            content=ft.Column([
+                ft.Row([self.buscar_autor_input, self.autores_dropdown, self.btn_agregar_autor], spacing=8),
+                ft.Divider(height=8),
+                ft.Text("Autores seleccionados:", size=12, weight=ft.FontWeight.BOLD, color="#666"),
+                self.autores_seleccionados_column,
+            ], spacing=8),
+            padding=10,
+            border=ft.border.all(1, "#cfd8dc"),
+            border_radius=8,
+            bgcolor="#fafafa",
+        )
+        
+        # Inicializar dropdown con todos los autores
+        self.actualizar_dropdown_autores_crear()
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
@@ -602,7 +802,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             
             # Sección: Descripción y Autores
             ft.Text("Descripción y Autores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
-            self.autores_ids_input,
+            ft.Text("Selecciona los autores:", size=12, color="#666"),
+            self.autores_container,
             self.descripcion_input,
             
         ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
@@ -704,11 +905,69 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             value=libro.get("clasificacion_dui", "") or "",
             **INPUT_STYLE,
         )
-        self.autores_ids_input = ft.TextField(
-            label="IDs de Autores (separados por comas)",
-            value=libro.get("autores_ids", "") or "",
-            **INPUT_STYLE,
+        
+        # Sistema de búsqueda y selección de autores para edición
+        self.autores_todos = self._db.get_autores()
+        
+        # Obtener los IDs de los autores del libro desde la base de datos
+        autores_ids_libro = self._db.get_autores_libro(int(id_libro))
+        autores_ids_list = [id.strip() for id in autores_ids_libro.split(",") if id.strip()]
+        
+        # Inicializar autores seleccionados con los del libro
+        self.autores_seleccionados = []
+        for autor_id in autores_ids_list:
+            autor = next((a for a in self.autores_todos if str(a.get("id_autor")) == autor_id), None)
+            if autor:
+                self.autores_seleccionados.append({
+                    "id": str(autor.get("id_autor")),
+                    "nombre": autor.get("nombre_completo", "Sin nombre")
+                })
+        
+        self.buscar_autor_input = ft.TextField(
+            label="Buscar autor",
+            width=320,
+            height=44,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            border_color="#cfd8dc",
+            text_size=14,
+            on_change=self.filtrar_autores_editar,
         )
+        
+        self.autores_dropdown = ft.Dropdown(
+            label="Selecciona un autor",
+            width=320,
+            bgcolor="#f5f7fa",
+            border_radius=8,
+            options=[],
+        )
+        
+        self.btn_agregar_autor = ft.IconButton(
+            icon=ft.Icons.ADD,
+            bgcolor="#1976d2",
+            icon_color=ft.Colors.WHITE,
+            tooltip="Agregar autor",
+            on_click=self.agregar_autor_editar,
+        )
+        
+        self.autores_seleccionados_column = ft.Column(spacing=4)
+        
+        self.autores_container = ft.Container(
+            content=ft.Column([
+                ft.Row([self.buscar_autor_input, self.autores_dropdown, self.btn_agregar_autor], spacing=8),
+                ft.Divider(height=8),
+                ft.Text("Autores seleccionados:", size=12, weight=ft.FontWeight.BOLD, color="#666"),
+                self.autores_seleccionados_column,
+            ], spacing=8),
+            padding=10,
+            border=ft.border.all(1, "#cfd8dc"),
+            border_radius=8,
+            bgcolor="#fafafa",
+        )
+        
+        # Inicializar dropdown y lista de seleccionados
+        self.actualizar_dropdown_autores_editar()
+        self.actualizar_lista_autores_seleccionados_editar()
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
@@ -755,7 +1014,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             ft.Row([self.anio_input, self.edicion_input], spacing=12),
 
             ft.Text("Descripción y Autores", size=14, weight=ft.FontWeight.BOLD, color="#0b495c"),
-            self.autores_ids_input,
+            ft.Text("Selecciona los autores:", size=12, color="#666"),
+            self.autores_container,
             self.descripcion_input,
         ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -819,7 +1079,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             anio = (self.anio_input.value or "").strip()
             anio_publicacion = int(anio) if anio else None
 
-            autores_csv = (self.autores_ids_input.value or "").strip()
+            # Obtener IDs de autores seleccionados del nuevo sistema
+            autores_csv = ",".join([a["id"] for a in self.autores_seleccionados])
             codigo_barras = (self.codigo_barras_input.value or "").strip()
 
             self._db.update_libro(
@@ -881,7 +1142,10 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             anio = (self.anio_input.value or "").strip()
             anio_publicacion = int(anio) if anio else None
 
-            autores_csv = (self.autores_ids_input.value or "").strip()
+            # Obtener IDs de autores seleccionados
+            autores_csv = ",".join([a["id"] for a in self.autores_seleccionados])
+
+            codigo_barras = (self.codigo_barras_input.value or "").strip()
 
             print(f"[CREATE] Parámetros:")
             print(f"  - titulo: {titulo}")
@@ -902,7 +1166,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 activo=1,
                 autores_ids_csv=autores_csv if autores_csv else None,
                 clasificacion_dui=clasificacion_dui,
-                codigo_barras=None,
+                codigo_barras=codigo_barras if codigo_barras else None,
             )
             print(f"[CREATE] Resultado: {resultado}")
 

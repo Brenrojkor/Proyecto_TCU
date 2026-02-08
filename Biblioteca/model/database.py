@@ -46,10 +46,10 @@ class Database:
         )
         self.conn.commit()
 
-    def set_autores(self, nombre, apellido, nacionalidad):
+    def set_autores(self, nombre_completo, nacionalidad):
         self.cursor.execute(
-            "EXEC sp_CrearAutor @nombre = ?, @apellido = ?, @nacionalidad = ?",
-            (nombre, apellido if apellido else None, nacionalidad if nacionalidad else None)
+            "EXEC sp_CrearAutor @nombre_completo = ?, @nacionalidad = ?",
+            (nombre_completo, nacionalidad if nacionalidad else None)
         )
         self.conn.commit()
         
@@ -154,6 +154,34 @@ class Database:
         )
         self.conn.commit()
         
+        
+    def get_usuario_detalle(self, id_usuario: int):
+        try:
+            cur = self.conn.cursor()
+            cur.execute(
+                "EXEC dbo.sp_ObtenerDetalleUsuario @id_usuario = ?",
+                (id_usuario,)
+            )
+            row = cur.fetchone()
+
+            if row:
+                columnas = [col[0] for col in cur.description] if cur.description else []
+                cur.close()
+                return dict(zip(columnas, row))
+
+            cur.close()
+        except Exception:
+            pass
+
+        # Fallback por si el SP falla
+        usuarios = self.get_usuarios()
+        for usuario in usuarios:
+            if int(usuario.get("id_usuario", 0)) == id_usuario:
+                return usuario
+
+        return None
+
+        
 
     def update_categoria(self, id_categoria, nombre, descripcion):
         self.cursor.execute(
@@ -162,10 +190,10 @@ class Database:
         )
         self.conn.commit()
 
-    def update_autor(self, id_autor, nombre, apellido, nacionalidad):
+    def update_autor(self, id_autor, nombre_completo, nacionalidad):
         self.cursor.execute(
-            "EXEC sp_EditarAutor @id_autor = ?, @nombre = ?, @apellido = ?, @nacionalidad = ?",
-            (id_autor, nombre, apellido if apellido else None, nacionalidad if nacionalidad else None)
+            "EXEC sp_EditarAutor @id_autor = ?, @nombre_completo = ?, @nacionalidad = ?",
+            (id_autor, nombre_completo, nacionalidad if nacionalidad else None)
         )
         self.conn.commit()
 
@@ -189,7 +217,7 @@ class Database:
         sql_query = """EXEC sp_CrearLibro 
         @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
         @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
-        @autores_ids_csv = ?, @clasificacion_dui = ?"""
+        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?"""
 
         values = [
             titulo,
@@ -202,6 +230,7 @@ class Database:
             activo,
             autores_ids_csv,
             clasificacion_dui,
+            codigo_barras
         ]
 
         print(f"[DB] SQL: {sql_query}")
@@ -284,6 +313,13 @@ class Database:
             (id_libro,)
         )
         self.conn.commit()
+        
+    def desactivar_usuario(self, id_usuario: int):
+        self.cursor.execute(
+            "EXEC sp_DesactivarUsuario @id_usuario = ?",
+            (id_usuario,)
+        )
+        self.conn.commit()
 
     def update_libro(
          self,
@@ -322,6 +358,23 @@ class Database:
          self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
          self.conn.commit()
 
+    def get_autores_libro(self, id_libro: int):
+        """Obtiene los IDs de los autores de un libro específico"""
+        try:
+            cur = self.conn.cursor()
+            cur.execute("""
+                SELECT STRING_AGG(CAST(id_autor AS VARCHAR), ',') as autores_ids
+                FROM Libro_Autor
+                WHERE id_libro = ?
+            """, (id_libro,))
+            row = cur.fetchone()
+            cur.close()
+            
+            if row and row[0]:
+                return row[0]
+            return ""
+        except Exception:
+            return ""
 
     # =========================
     # Toggle Activo/Inactivo
@@ -331,6 +384,23 @@ class Database:
         cur.execute(
             "EXEC dbo.sp_SetLibroActivo @id_libro = ?, @activo = ?",
             (id_libro, int(activo))
+        )
+
+        try:
+            while cur.nextset():
+                pass
+        except Exception:
+            pass
+
+        self.conn.commit()
+        cur.close()
+        
+        
+    def set_usuario_activo(self, id_usuario: int, activo: int):
+        cur = self.conn.cursor()
+        cur.execute(
+            "EXEC dbo.sp_SetUsuarioActivo @id_usuario = ?, @activo = ?",
+            (id_usuario, int(activo))
         )
 
         try:

@@ -12,6 +12,7 @@ from view.pages.login import LoginPage
 from view.pages.registro import RegistroPage
 from view.pages.usuarios import UsuariosPage
 from view.pages.detallelib import DetalleLibroPage
+from view.pages.detalleUsuario import DetalleUsuarioPage
 from view.pages.editarlib import EditarLibroPage
 from view.pages.estadisticas import EstadisticasView
 from view.pages.notificaciones import NotificacionesPage
@@ -34,6 +35,7 @@ class Router:
              "/registro": RegistroPage,
              "/usuarios": UsuariosPage,
              "/libro": DetalleLibroPage,
+             "/detalleusuario": DetalleUsuarioPage,
              "/editlib": EditarLibroPage,
              "/estadisticas": EstadisticasView,
              "/notificaciones": NotificacionesPage,
@@ -58,7 +60,7 @@ class Router:
         view_class = self.routes.get(route_base, self.not_found)
         
         # Pasar parámetro si existe
-        if param is not None and route_base in ["/libro", "/editlib"]:
+        if param is not None and route_base in ["/libro", "/editlib", "/detalleusuario"]:
             self.container.controls.append(view_class(self.navigate, self.page, param))
         else:
             self.container.controls.append(view_class(self.navigate, self.page))

@@ -46,8 +46,7 @@ class AutoresPage(ft.Column):
             column_spacing=50,
             horizontal_margin=16,
             columns=[
-                ft.DataColumn(ft.Text("Nombre", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Apellido", weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(ft.Text("Nombre Completo", weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(ft.Text("Nacionalidad", weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#0d47a1")),
             ],
@@ -128,17 +127,11 @@ class AutoresPage(ft.Column):
         self._abrir_dialogo("Editar autor", autor)
 
     def _abrir_dialogo(self, titulo, autor=None):
-        self.nombre_input = ft.TextField(
-            label="Nombre",
-            value=autor["nombre"] if autor else "",
+        self.nombre_completo_input = ft.TextField(
+            label="Nombre Completo",
+            value=autor.get("nombre_completo", "") if autor else "",
             width=320,
             autofocus=True,
-        )
-
-        self.apellido_input = ft.TextField(
-            label="Apellido",
-            value=autor.get("apellido", "") if autor else "",
-            width=320,
         )
 
         self.nacionalidad_input = ft.TextField(
@@ -173,7 +166,7 @@ class AutoresPage(ft.Column):
 
                     ft.Divider(height=6, color="transparent"),
 
-                    ft.Column([self.nombre_input, self.apellido_input, self.nacionalidad_input], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    ft.Column([self.nombre_completo_input, self.nacionalidad_input], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
 
                     ft.Divider(height=6, color="transparent"),
 
@@ -200,15 +193,14 @@ class AutoresPage(ft.Column):
         filtro = (self.search_input.value or "").lower()
 
         for autor in self.db.get_autores():
-            texto = f'{autor["nombre"]} {autor.get("apellido","")} {autor.get("nacionalidad","")}'.lower()
+            texto = f'{autor.get("nombre_completo", "")} {autor.get("nacionalidad","")}'.lower()
             if filtro and filtro not in texto:
                 continue
 
             self.autores_table.rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(autor["nombre"])),
-                        ft.DataCell(ft.Text(autor.get("apellido", ""))),
+                        ft.DataCell(ft.Text(autor.get("nombre_completo", ""))),
                         ft.DataCell(ft.Text(autor.get("nacionalidad", ""))),
                         ft.DataCell(
                             ft.Row(
@@ -236,26 +228,24 @@ class AutoresPage(ft.Column):
         self._page.update()
 
     def guardar_autor(self, e):
-        nombre = self.nombre_input.value.strip()
-        apellido = self.apellido_input.value.strip()
+        nombre_completo = self.nombre_completo_input.value.strip()
         nacionalidad = self.nacionalidad_input.value.strip()
 
-        if not nombre:
-            self.nombre_input.error_text = "El nombre es obligatorio"
+        if not nombre_completo:
+            self.nombre_completo_input.error_text = "El nombre completo es obligatorio"
             self._page.update()
             return
         else:
-            self.nombre_input.error_text = None
+            self.nombre_completo_input.error_text = None
 
         if self.autor_editando:
             self.db.update_autor(
                 self.autor_editando["id_autor"],
-                nombre,
-                apellido,
+                nombre_completo,
                 nacionalidad,
             )
         else:
-            self.db.set_autores(nombre, apellido, nacionalidad)
+            self.db.set_autores(nombre_completo, nacionalidad)
 
         # feedback
         self._page.snack_bar = ft.SnackBar(ft.Text("✅ Autor guardado correctamente"), bgcolor=ft.Colors.GREEN_500)

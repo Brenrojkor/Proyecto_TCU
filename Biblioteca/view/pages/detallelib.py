@@ -73,7 +73,7 @@ class DetalleLibroPage(ft.Column):
                 return "N/A"
             try:
                 autores_list = self._db.get_autores()
-                autores_dict = {str(a.get("id_autor", "")): a.get("nombre", "") for a in autores_list}
+                autores_dict = {str(a.get("id_autor", "")): a.get("nombre_completo", "") for a in autores_list}
                 ids = [id.strip() for id in str(autores_csv).split(",")]
                 nombres = [autores_dict.get(id, "") for id in ids if id and autores_dict.get(id)]
                 return ", ".join(nombres) if nombres else autores_csv
@@ -277,7 +277,6 @@ class DetalleLibroPage(ft.Column):
                         width=340,
                         padding=8,
                         content=ft.Column([
-                            ft.Text("Información rápida", weight=ft.FontWeight.BOLD, size=14, color="#1976d2"),
                             ft.Divider(height=8, color="transparent"),
                             pdf_section,
                             ft.Divider(height=12, color="transparent"),
