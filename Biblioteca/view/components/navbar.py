@@ -4,7 +4,6 @@ from utils.notificaciones_manager import NotificacionesManager
 
 
 def NavBar(page, navigate):
-    # Obtener el número de notificaciones
     notif_manager = NotificacionesManager()
     
     def get_notificaciones_count():
@@ -20,7 +19,6 @@ def NavBar(page, navigate):
     notif_count = notif_manager.get_count_no_vistas(total_count)
     
     def ir_a_notificaciones(e):
-        # Marcar todas las notificaciones actuales como vistas
         notif_manager.marcar_como_vistas(total_count)
         navigate("/notificaciones")
 
@@ -76,6 +74,14 @@ def NavBar(page, navigate):
                     ),
                     on_click=lambda _: navigate("/autores"),
                 ),
+                ft.MenuItemButton(
+                    content=ft.Container(
+                        width=150,
+                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        content=ft.Text("Solicitudes"),
+                    ),
+                    on_click=lambda _: navigate("/solicitud"),
+                ),
                       ],
         )
     ],
@@ -107,7 +113,6 @@ def NavBar(page, navigate):
                     nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),
 
-                    # � Ícono de notificaciones con badge
                     ft.Container(
                         content=ft.Stack(
                             [
@@ -118,7 +123,6 @@ def NavBar(page, navigate):
                                     tooltip="Notificaciones de devoluciones",
                                     on_click=ir_a_notificaciones,
                                 ),
-                                # Badge con contador
                                 ft.Container(
                                     content=ft.Text(
                                         str(notif_count),
@@ -139,7 +143,6 @@ def NavBar(page, navigate):
                         height=48,
                     ),
 
-                    # 👤 Avatar clickeable
                     ft.Container(
                         content=ft.CircleAvatar(
                             content=ft.Icon(

@@ -16,6 +16,7 @@ from view.pages.detalleUsuario import DetalleUsuarioPage
 from view.pages.editarlib import EditarLibroPage
 from view.pages.estadisticas import EstadisticasView
 from view.pages.notificaciones import NotificacionesPage
+from view.pages.solicitud import SolicitudPage
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -39,6 +40,7 @@ class Router:
              "/editlib": EditarLibroPage,
              "/estadisticas": EstadisticasView,
              "/notificaciones": NotificacionesPage,
+             "/solicitud": SolicitudPage,
         }
 
     def set_container(self, container: ft.Column):

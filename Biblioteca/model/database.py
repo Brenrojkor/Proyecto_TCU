@@ -39,6 +39,12 @@ class Database:
         columnas = [col[0] for col in self.cursor.description]
         return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
 
+    def get_solicitudes(self):
+        self.cursor.execute("EXEC sp_VerSolicitudes")
+        columnas = [col[0] for col in self.cursor.description]
+        return [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+
+
     def set_categorias(self, nombre, descripcion):
         self.cursor.execute(
             "EXEC sp_CrearCategoria @nombre = ?, @descripcion = ?",
@@ -50,6 +56,17 @@ class Database:
         self.cursor.execute(
             "EXEC sp_CrearAutor @nombre_completo = ?, @nacionalidad = ?",
             (nombre_completo, nacionalidad if nacionalidad else None)
+        )
+        self.conn.commit()
+        
+    def set_solicitud(self, descripcion, autor, activo):
+        self.cursor.execute(
+            "EXEC sp_CrearSolicitud @descripcion = ?, @autor = ?, @activo = ?",
+            (
+                descripcion if descripcion else None,
+                autor if autor else None,
+                activo
+            )
         )
         self.conn.commit()
         
@@ -154,7 +171,25 @@ class Database:
         )
         self.conn.commit()
         
-        
+    def update_solicitud(self, id_solicitud, descripcion, autor, activo):
+        self.cursor.execute(
+            "EXEC sp_EditarSolicitud @id_solicitud = ?, @descripcion = ?, @autor = ?, @activo = ?",
+            (
+                id_solicitud,
+                descripcion if descripcion else None,
+                autor if autor else None,
+                activo
+            )
+        )
+        self.conn.commit()
+
+    def eliminar_solicitud(self, id_solicitud: int):
+        self.cursor.execute(
+            "EXEC dbo.sp_EliminarSolicitud @id_solicitud = ?",
+            (int(id_solicitud),)
+        )
+        self.conn.commit()
+  
     def get_usuario_detalle(self, id_usuario: int):
         try:
             cur = self.conn.cursor()
@@ -181,7 +216,6 @@ class Database:
 
         return None
 
-        
 
     def update_categoria(self, id_categoria, nombre, descripcion):
         self.cursor.execute(
@@ -320,6 +354,7 @@ class Database:
             (id_usuario,)
         )
         self.conn.commit()
+        
 
     def update_libro(
          self,
@@ -333,7 +368,7 @@ class Database:
     id_categoria,
     autores_ids_csv=None,
     clasificacion_dui=None,
-    codigo_barras=None,   # ✅ NUEVO
+    codigo_barras=None,   
 ):
          param_str = """
         @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?,
@@ -359,7 +394,6 @@ class Database:
          self.conn.commit()
 
     def get_autores_libro(self, id_libro: int):
-        """Obtiene los IDs de los autores de un libro específico"""
         try:
             cur = self.conn.cursor()
             cur.execute("""
