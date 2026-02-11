@@ -583,3 +583,179 @@ class Database:
         data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
         cur.close()
         return data
+
+        # =========================
+    # PRÉSTAMOS (RESERVAS)
+    # =========================
+        # =========================
+    # PRÉSTAMOS (RESERVAS)
+    # =========================
+
+    def get_prestamos(self):
+        cur = self.conn.cursor()
+        try:
+            cur.execute("EXEC dbo.sp_VerPrestamos")
+            columnas = [col[0] for col in cur.description]
+            data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+            cur.close()
+            return data
+        except Exception as e:
+            try:
+                cur.execute("""
+                    SELECT 
+                        p.id_prestamo,
+                        p.id_libro,
+                        l.titulo as libro_titulo,
+                        u.identificacion as identificacion_usuario,
+                        u.nombre_completo as nombre_usuario,
+                        p.fecha_prestamo,
+                        p.fecha_devolucion_esperada,
+                        p.fecha_devolucion_real,
+                        p.estado,
+                        p.observaciones
+                    FROM Prestamos p
+                    INNER JOIN Libro l ON p.id_libro = l.id_libro
+                    LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
+                    ORDER BY p.fecha_prestamo DESC
+                """)
+                columnas = [col[0] for col in cur.description]
+                data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+                cur.close()
+                return data
+            except Exception as ex:
+                import traceback
+                print(f"Error al obtener préstamos: {ex}")
+                print(traceback.format_exc())
+                try:
+                    cur.close()
+                except:
+                    pass
+                return []
+
+    def crear_prestamo(self, id_libro, identificacion, fecha_devolucion_esperada):
+        """Crea un nuevo préstamo"""
+        cur = self.conn.cursor()
+        try:
+            # Obtener id_usuario desde la identificación
+            cur.execute("SELECT id_usuario FROM Usuarios WHERE identificacion = ?", (identificacion,))
+            resultado = cur.fetchone()
+            
+            if not resultado:
+                cur.close()
+                raise Exception(f"No se encontró un usuario con la identificación {identificacion}")
+            
+            id_usuario = resultado[0]
+            
+            # Intentar con stored procedure
+            try:
+                cur.execute(
+                    "EXEC dbo.sp_CrearPrestamo @id_libro = ?, @id_usuario = ?, @fecha_devolucion_esperada = ?",
+                    (id_libro, id_usuario, fecha_devolucion_esperada)
+                )
+            except Exception:
+                # Si el SP no existe, inserción directa
+                cur.execute("""
+                    INSERT INTO Prestamos (id_libro, id_usuario, fecha_prestamo, fecha_devolucion_esperada, estado)
+                    VALUES (?, ?, GETDATE(), ?, 'PRESTADO')
+                """, (id_libro, id_usuario, fecha_devolucion_esperada))
+            
+            self.conn.commit()
+            cur.close()
+            
+        except Exception as ex:
+            self.conn.rollback()
+            try:
+                cur.close()
+            except:
+                pass
+            import traceback
+            print(f"Error al crear préstamo: {ex}")
+            print(traceback.format_exc())
+            raise Exception(f"Error al crear préstamo: {str(ex)}")
+
+    def actualizar_devolucion_prestamo(self, id_prestamo, observaciones=None):
+        """Marca un préstamo como devuelto"""
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                "EXEC dbo.sp_RegistrarDevolucion @id_prestamo = ?, @observaciones = ?",
+                (id_prestamo, observaciones)
+            )
+            self.conn.commit()
+        except Exception:
+            try:
+                cur.execute("""
+                    UPDATE Prestamos 
+                    SET estado = 'DEVUELTO',
+                        fecha_devolucion_real = GETDATE(),
+                        observaciones = ?
+                    WHERE id_prestamo = ?
+                """, (observaciones, id_prestamo))
+                self.conn.commit()
+            except Exception as ex:
+                raise Exception(f"Error al actualizar devolución: {str(ex)}")
+        finally:
+            cur.close()
+
+    def eliminar_prestamo(self, id_prestamo):
+        """Elimina un préstamo"""
+        cur = self.conn.cursor()
+        try:
+            cur.execute("EXEC dbo.sp_EliminarPrestamo @id_prestamo = ?", (id_prestamo,))
+            self.conn.commit()
+        except Exception:
+            try:
+                cur.execute("DELETE FROM Prestamos WHERE id_prestamo = ?", (id_prestamo,))
+                self.conn.commit()
+            except Exception as ex:
+                raise Exception(f"Error al eliminar préstamo: {str(ex)}")
+        finally:
+            cur.close()
+
+    def get_historial_prestamos_usuario(self, identificacion):
+        """Obtiene el historial de préstamos de un usuario por identificación"""
+        cur = self.conn.cursor()
+        
+        print(f"[DEBUG] Buscando historial para identificación: '{identificacion}'")
+        
+        try:
+            # Buscar préstamos directamente por identificación (maneja duplicados)
+            cur.execute("""
+                SELECT 
+                    p.id_prestamo,
+                    p.id_libro,
+                    l.titulo as libro_titulo,
+                    p.id_usuario,
+                    u.nombre_completo as nombre_usuario,
+                    u.identificacion as identificacion_usuario,
+                    p.fecha_prestamo,
+                    p.fecha_devolucion_esperada,
+                    p.fecha_devolucion_real,
+                    p.estado,
+                    p.observaciones,
+                    CASE 
+                        WHEN p.fecha_devolucion_real IS NOT NULL THEN 'DEVUELTO'
+                        WHEN p.fecha_devolucion_esperada < CAST(GETDATE() AS DATE) THEN 'NO DEVUELTO'
+                        ELSE 'PRESTADO'
+                    END as estado_calculado,
+                    DATEDIFF(day, GETDATE(), p.fecha_devolucion_esperada) as dias_restantes
+                FROM Prestamos p
+                INNER JOIN Libro l ON p.id_libro = l.id_libro
+                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
+                WHERE u.identificacion = ?
+                ORDER BY p.fecha_prestamo DESC
+            """, (identificacion,))
+            columnas = [col[0] for col in cur.description]
+            data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+            print(f"[DEBUG] Query retornó {len(data)} registros para identificación '{identificacion}'")
+            return data
+        except Exception as ex:
+            import traceback
+            print(f"[DEBUG] Error al obtener historial: {ex}")
+            print(traceback.format_exc())
+            return []
+        finally:
+            cur.close()
+
+    
+    
