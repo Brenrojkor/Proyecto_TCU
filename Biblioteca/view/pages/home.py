@@ -6,6 +6,9 @@ import sys
 import tempfile
 import re
 import subprocess
+from datetime import datetime, timedelta
+from openpyxl import Workbook
+import calendar
 
 
 class HomePage(ft.Column):
@@ -14,6 +17,7 @@ class HomePage(ft.Column):
         self._page = page
         self.navigate = navigate
         self._db = Database()
+        self._estado_actual = "TODOS"
 
         # =========================
         # Helpers
@@ -185,18 +189,33 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             text_size=14,
         )
 
-        # ✅ Dropdown para Activo/Inactivo/Todos
-        estado_dd = ft.Dropdown(
-            width=200,
-            height=44,
-            bgcolor="#f5f7fa",
-            border_radius=8,
-            value="TODOS",
-            options=[
-                ft.dropdown.Option("TODOS"),
-                ft.dropdown.Option("ACTIVOS"),
-                ft.dropdown.Option("INACTIVOS"),
-            ],
+        # Botones de filtro Activos/Inactivos
+        def set_estado(estado: str):
+            self._estado_actual = estado
+            aplicar_filtros(q=search_input.value, estado=self._estado_actual)
+
+        btn_activos = ft.ElevatedButton(
+            content=ft.Row([
+                ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.WHITE, size=18),
+                ft.Text("Ver Activos", color=ft.Colors.WHITE),
+            ], spacing=6),
+            bgcolor=ft.Colors.GREEN,
+            on_click=lambda e: set_estado("ACTIVOS"),
+        )
+
+        btn_inactivos = ft.ElevatedButton(
+            content=ft.Row([
+                ft.Icon(ft.Icons.BLOCK, color=ft.Colors.WHITE, size=18),
+                ft.Text("Ver Inactivos", color=ft.Colors.WHITE),
+            ], spacing=6),
+            bgcolor=ft.Colors.RED,
+            on_click=lambda e: set_estado("INACTIVOS"),
+        )
+
+        btn_todos = ft.ElevatedButton(
+            content=ft.Text("Todos"),
+            bgcolor="#eceff1",
+            on_click=lambda e: set_estado("TODOS"),
         )
 
         libros_table = ft.DataTable(
@@ -428,12 +447,12 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             haystack = " | ".join([(v or "") for v in valores]).lower()
             return q in haystack
 
-        # ✅ FIX: aceptar valores directos (evita leer value viejo)
+        # ✅ aceptar valores directos (evita leer value viejo)
         def aplicar_filtros(q=None, estado=None):
             libros_table.rows.clear()
 
             q = (q if q is not None else (search_input.value or "")).strip().lower()
-            estado = (estado if estado is not None else (estado_dd.value or "TODOS")).strip().upper()
+            estado = (estado if estado is not None else (self._estado_actual or "TODOS")).strip().upper()
 
             for libro in self._libros_cache:
                 if libro_match_estado(libro, estado) and libro_match_texto(libro, q):
@@ -441,19 +460,316 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 
             self._page.update()
 
-        # ✅ FIX: usar e.control.value
+        # ✅ usar e.control.value
         def on_search_change(e):
             if not self._libros_cache:
                 self._libros_cache = self._db.get_libros()
-            aplicar_filtros(q=e.control.value, estado=estado_dd.value)
-
-        def on_estado_change(e):
-            if not self._libros_cache:
-                self._libros_cache = self._db.get_libros()
-            aplicar_filtros(q=search_input.value, estado=e.control.value)
+            aplicar_filtros(q=e.control.value, estado=self._estado_actual)
 
         search_input.on_change = on_search_change
-        estado_dd.on_change = on_estado_change
+
+        # =========================
+        # Exportar Excel (Semana/Mes)
+        # =========================
+        def parse_fecha(valor):
+            if not valor:
+                return None
+            if isinstance(valor, datetime):
+                return valor
+            s = str(valor).strip()
+            formatos = [
+                "%Y-%m-%d",
+                "%Y-%m-%d %H:%M:%S",
+                "%d/%m/%Y",
+                "%d/%m/%Y %H:%M:%S",
+            ]
+            for fmt in formatos:
+                try:
+                    return datetime.strptime(s, fmt)
+                except Exception:
+                    pass
+            try:
+                return datetime.fromisoformat(s)
+            except Exception:
+                return None
+
+        def get_fecha_registro(libro: dict):
+            for key in [
+                "fecha_registro",
+                "fecha_creacion",
+                "fecha",
+                "fecha_alta",
+                "creado_en",
+            ]:
+                if key in libro and libro[key] is not None:
+                    return parse_fecha(libro[key])
+            return None
+
+        def filtrar_por_periodo(libros, periodo: str):
+            ahora = datetime.now()
+            if periodo == "SEMANA":
+                inicio = ahora - timedelta(days=7)
+            else:  # MES
+                inicio = ahora - timedelta(days=30)
+
+            filtrados = []
+            tiene_fecha = False
+            for l in libros:
+                f = get_fecha_registro(l)
+                if f:
+                    tiene_fecha = True
+                    if f >= inicio:
+                        filtrados.append(l)
+            # Si no hay fechas en ningún registro, devolver todos para ese estado
+            return filtrados if tiene_fecha else libros
+
+        def exportar_excel_estado(periodo: str, estado: str):
+            if not self._libros_cache:
+                self._libros_cache = self._db.get_libros()
+
+            estado = estado.strip().upper()
+            periodo = periodo.strip().upper()
+
+            seleccion = [l for l in self._libros_cache if libro_match_estado(l, estado)]
+            seleccion = filtrar_por_periodo(seleccion, periodo)
+
+            # Preparar Excel
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"{estado.title()}-{periodo.title()}"
+
+            headers = [
+                "Código de barras",
+                "Título",
+                "Clasificación DUI",
+                "Categoría",
+                "Autores",
+                "ISBN",
+                "Tipo",
+                "Activo",
+            ]
+            ws.append(headers)
+
+            for libro in seleccion:
+                activo_value = libro.get("activo")
+                is_activo = (
+                    activo_value == 1
+                    or activo_value is True
+                    or str(activo_value).strip().lower() in ("1", "true")
+                )
+                ws.append([
+                    (libro.get("codigo_barras") or ""),
+                    (libro.get("titulo") or ""),
+                    (libro.get("clasificacion_dui") or ""),
+                    (libro.get("categoria") or ""),
+                    (libro.get("autores") or ""),
+                    (libro.get("isbn") or ""),
+                    (libro.get("tipo") or ""),
+                    ("ACTIVO" if is_activo else "INACTIVO"),
+                ])
+
+            nombre = f"libros_{estado.lower()}_{periodo.lower()}.xlsx"
+            out_path = os.path.join(tempfile.gettempdir(), nombre)
+            try:
+                wb.save(out_path)
+                snack(f"Excel generado: {nombre}")
+                open_file_default_app(out_path)
+            except Exception as ex:
+                snack(f"No se pudo generar Excel: {ex}")
+
+        # ----- Exportes por rango explícito -----
+        def rango_semana_actual():
+            hoy = datetime.now()
+            delta = hoy.weekday()  # lunes=0
+            inicio = datetime(hoy.year, hoy.month, hoy.day) - timedelta(days=delta)
+            fin = inicio + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            return inicio, fin
+
+        def rango_semana_anterior():
+            inicio_actual, _ = rango_semana_actual()
+            inicio = inicio_actual - timedelta(days=7)
+            fin = inicio + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            return inicio, fin
+
+        def rango_mes_actual():
+            hoy = datetime.now()
+            inicio = datetime(hoy.year, hoy.month, 1)
+            dias = calendar.monthrange(hoy.year, hoy.month)[1]
+            fin = datetime(hoy.year, hoy.month, dias, 23, 59, 59)
+            return inicio, fin
+
+        def rango_mes_anterior():
+            hoy = datetime.now()
+            year = hoy.year
+            month = hoy.month - 1
+            if month == 0:
+                month = 12
+                year -= 1
+            inicio = datetime(year, month, 1)
+            dias = calendar.monthrange(year, month)[1]
+            fin = datetime(year, month, dias, 23, 59, 59)
+            return inicio, fin
+
+        def rango_mes_especifico(year: int, month: int):
+            inicio = datetime(year, month, 1)
+            dias = calendar.monthrange(year, month)[1]
+            fin = datetime(year, month, dias, 23, 59, 59)
+            return inicio, fin
+
+        def filtrar_por_rango(libros, inicio: datetime, fin: datetime):
+            filtrados = []
+            tiene_fecha = False
+            for l in libros:
+                f = get_fecha_registro(l)
+                if f:
+                    tiene_fecha = True
+                    if inicio <= f <= fin:
+                        filtrados.append(l)
+            return filtrados if tiene_fecha else libros
+
+        def exportar_excel_estado_rango(estado: str, inicio: datetime, fin: datetime, nombre_sufijo: str):
+            if not self._libros_cache:
+                self._libros_cache = self._db.get_libros()
+
+            estado = estado.strip().upper()
+            seleccion = [l for l in self._libros_cache if libro_match_estado(l, estado)]
+            seleccion = filtrar_por_rango(seleccion, inicio, fin)
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"{estado.title()}"
+
+            headers = [
+                "Código de barras",
+                "Título",
+                "Clasificación DUI",
+                "Categoría",
+                "Autores",
+                "ISBN",
+                "Tipo",
+                "Activo",
+            ]
+            ws.append(headers)
+
+            for libro in seleccion:
+                activo_value = libro.get("activo")
+                is_activo = (
+                    activo_value == 1
+                    or activo_value is True
+                    or str(activo_value).strip().lower() in ("1", "true")
+                )
+                ws.append([
+                    (libro.get("codigo_barras") or ""),
+                    (libro.get("titulo") or ""),
+                    (libro.get("clasificacion_dui") or ""),
+                    (libro.get("categoria") or ""),
+                    (libro.get("autores") or ""),
+                    (libro.get("isbn") or ""),
+                    (libro.get("tipo") or ""),
+                    ("ACTIVO" if is_activo else "INACTIVO"),
+                ])
+
+            nombre = f"libros_{estado.lower()}_{nombre_sufijo}.xlsx"
+            out_path = os.path.join(tempfile.gettempdir(), nombre)
+            try:
+                wb.save(out_path)
+                snack(f"Excel generado: {nombre}")
+                open_file_default_app(out_path)
+            except Exception as ex:
+                snack(f"No se pudo generar Excel: {ex}")
+
+        def export_semana_actual(estado: str):
+            i, f_ = rango_semana_actual()
+            exportar_excel_estado_rango(estado, i, f_, "semana_actual")
+
+        def export_semana_anterior(estado: str):
+            i, f_ = rango_semana_anterior()
+            exportar_excel_estado_rango(estado, i, f_, "semana_anterior")
+
+        def export_mes_actual(estado: str):
+            i, f_ = rango_mes_actual()
+            exportar_excel_estado_rango(estado, i, f_, "mes_actual")
+
+        def export_mes_anterior(estado: str):
+            i, f_ = rango_mes_anterior()
+            exportar_excel_estado_rango(estado, i, f_, "mes_anterior")
+
+        def abrir_dialogo_mes(estado: str):
+            ahora = datetime.now()
+            meses = [
+                (1, "Enero"), (2, "Febrero"), (3, "Marzo"), (4, "Abril"),
+                (5, "Mayo"), (6, "Junio"), (7, "Julio"), (8, "Agosto"),
+                (9, "Septiembre"), (10, "Octubre"), (11, "Noviembre"), (12, "Diciembre"),
+            ]
+
+            mes_dd = ft.Dropdown(
+                label="Mes",
+                width=180,
+                options=[ft.dropdown.Option(key=str(m), text=nombre) for m, nombre in meses],
+                value=str(ahora.month),
+            )
+
+            anios = [ahora.year - 3 + i for i in range(7)]
+            anio_dd = ft.Dropdown(
+                label="Año",
+                width=140,
+                options=[ft.dropdown.Option(key=str(y), text=str(y)) for y in anios],
+                value=str(ahora.year),
+            )
+
+            def confirmar(e):
+                try:
+                    y = int(anio_dd.value)
+                    m = int(mes_dd.value)
+                    i, f_ = rango_mes_especifico(y, m)
+                    suf = f"{y}_{m:02d}"
+                    exportar_excel_estado_rango(estado, i, f_, f"mes_{suf}")
+                    dlg.open = False
+                    self._page.update()
+                except Exception as ex:
+                    snack(f"Error al exportar: {ex}")
+
+            dlg = ft.AlertDialog(
+                modal=True,
+                content=ft.Container(
+                    width=400,
+                    padding=10,
+                    content=ft.Column([
+                        ft.Text("Elegir mes para exportar", weight=ft.FontWeight.BOLD),
+                        ft.Row([mes_dd, anio_dd], spacing=8),
+                        ft.Row([
+                            ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or self._page.update()),
+                            ft.ElevatedButton("Exportar", on_click=confirmar),
+                        ], alignment=ft.MainAxisAlignment.END)
+                    ], spacing=10)
+                )
+            )
+
+            self._page.overlay.append(dlg)
+            dlg.open = True
+            self._page.update()
+
+        export_activos_menu = ft.PopupMenuButton(
+            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Excel Activos")], spacing=6),
+            items=[
+                ft.PopupMenuItem(content=ft.Text("Esta semana"), on_click=lambda e: export_semana_actual("ACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Semana anterior"), on_click=lambda e: export_semana_anterior("ACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Este mes"), on_click=lambda e: export_mes_actual("ACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Mes anterior"), on_click=lambda e: export_mes_anterior("ACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Elegir mes..."), on_click=lambda e: abrir_dialogo_mes("ACTIVOS")),
+            ],
+        )
+
+        export_inactivos_menu = ft.PopupMenuButton(
+            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Excel Inactivos")], spacing=6),
+            items=[
+                ft.PopupMenuItem(content=ft.Text("Esta semana"), on_click=lambda e: export_semana_actual("INACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Semana anterior"), on_click=lambda e: export_semana_anterior("INACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Este mes"), on_click=lambda e: export_mes_actual("INACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Mes anterior"), on_click=lambda e: export_mes_anterior("INACTIVOS")),
+                ft.PopupMenuItem(content=ft.Text("Elegir mes..."), on_click=lambda e: abrir_dialogo_mes("INACTIVOS")),
+            ],
+        )
 
         header = ft.Container(
             padding=ft.padding.symmetric(horizontal=20, vertical=12),
@@ -478,7 +794,11 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                 [
                     header,
                     ft.Row(
-                        [search_input, estado_dd],
+                        [
+                            search_input,
+                            ft.Row([btn_todos, btn_activos, btn_inactivos], spacing=8),
+                            ft.Row([export_activos_menu, export_inactivos_menu], spacing=8),
+                        ],
                         alignment=ft.MainAxisAlignment.END,
                         spacing=12,
                     ),
