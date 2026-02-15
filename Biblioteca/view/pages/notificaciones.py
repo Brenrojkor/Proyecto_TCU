@@ -116,7 +116,7 @@ class NotificacionesPage(ft.Column):
                                     color="#0d47a1",
                                 ),
                                 ft.Text(
-                                    f"Usuario: {reserva.get('nombre_usuario', 'N/A')} (Cédula: {reserva.get('cedula_usuario', 'N/A')})",
+                                    f"Usuario: {reserva.get('nombre_usuario', 'N/A')} (Cédula: {reserva.get('identificacion_usuario', reserva.get('cedula_usuario', 'N/A'))})",
                                     size=13,
                                     color="#666",
                                 ),
@@ -126,7 +126,7 @@ class NotificacionesPage(ft.Column):
                                     color="#888",
                                 ),
                                 ft.Text(
-                                    f"Fecha devolución: {reserva.get('fecha_devolucion', 'N/A')}",
+                                    f"Fecha devolución esperada: {reserva.get('fecha_devolucion_esperada', reserva.get('fecha_devolucion', 'N/A'))}",
                                     size=12,
                                     color="#888",
                                 ),
@@ -171,12 +171,12 @@ class NotificacionesPage(ft.Column):
         def abrir_dialogo_extender_fecha(reserva: dict):
             """Abre un diálogo para extender la fecha de devolución"""
             
-            fecha_actual = reserva.get("fecha_devolucion", "")
+            fecha_actual = reserva.get("fecha_devolucion_esperada", reserva.get("fecha_devolucion", ""))
             
-            # Calcular fecha sugerida (7 días más)
+            # Calcular fecha sugerida (20 días más)
             try:
                 fecha_obj = datetime.strptime(fecha_actual, "%Y-%m-%d")
-                fecha_sugerida = fecha_obj + timedelta(days=7)
+                fecha_sugerida = fecha_obj + timedelta(days=20)
                 fecha_sugerida_str = fecha_sugerida.strftime("%Y-%m-%d")
             except:
                 fecha_sugerida_str = ""
@@ -212,9 +212,9 @@ class NotificacionesPage(ft.Column):
                     return
                 
                 try:
-                    # Actualizar en la base de datos
-                    self.db.actualizar_fecha_devolucion(
-                        reserva.get("id_reserva"),
+                    # Actualizar en la base de datos (préstamos)
+                    self.db.actualizar_fecha_devolucion_esperada(
+                        reserva.get("id_prestamo", reserva.get("id_reserva")),
                         nueva_fecha
                     )
                     
@@ -286,9 +286,9 @@ class NotificacionesPage(ft.Column):
         # Cargar notificaciones
         # =========================
         def cargar_notificaciones_proximas():
-            """Carga las notificaciones de reservas próximas a vencer"""
+            """Carga las notificaciones de préstamos próximos a vencer"""
             try:
-                reservas = self.db.get_reservas_proximas_vencer(dias_anticipacion=3)
+                reservas = self.db.get_prestamos_proximos_vencer(dias_anticipacion=20)
                 
                 self.notificaciones_container.controls.clear()
                 
@@ -329,9 +329,9 @@ class NotificacionesPage(ft.Column):
                 snack(f"❌ Error al cargar notificaciones: {ex}", ok=False)
 
         def cargar_notificaciones_vencidas():
-            """Carga las notificaciones de reservas vencidas"""
+            """Carga las notificaciones de préstamos vencidos"""
             try:
-                reservas = self.db.get_reservas_vencidas()
+                reservas = self.db.get_prestamos_vencidos()
                 
                 self.notificaciones_container.controls.clear()
                 

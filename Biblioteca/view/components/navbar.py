@@ -9,8 +9,8 @@ def NavBar(page, navigate):
     def get_notificaciones_count():
         try:
             db = Database()
-            proximas = db.get_reservas_proximas_vencer(dias_anticipacion=3)
-            vencidas = db.get_reservas_vencidas()
+            proximas = db.get_prestamos_proximos_vencer(dias_anticipacion=20)
+            vencidas = db.get_prestamos_vencidos()
             return len(proximas) + len(vencidas)
         except:
             return 0
@@ -18,9 +18,44 @@ def NavBar(page, navigate):
     total_count = get_notificaciones_count()
     notif_count = notif_manager.get_count_no_vistas(total_count)
     
+    # Badge controls so we can update visibility/count dynamically
+    badge_text = ft.Text(
+        str(notif_count),
+        size=11,
+        weight=ft.FontWeight.BOLD,
+        color=ft.Colors.WHITE,
+    )
+    badge_container = ft.Container(
+        content=badge_text,
+        bgcolor=ft.Colors.RED_600,
+        border_radius=10,
+        padding=ft.padding.symmetric(horizontal=6, vertical=2),
+        top=8,
+        right=8,
+        visible=notif_count > 0,
+    )
+    
     def ir_a_notificaciones(e):
-        notif_manager.marcar_como_vistas(total_count)
+        # Persist viewed count and clear badge immediately
+        current_total = get_notificaciones_count()
+        notif_manager.marcar_como_vistas(current_total)
+        badge_text.value = "0"
+        badge_container.visible = False
+        page.update()
         navigate("/notificaciones")
+
+    def refresh_badge():
+        """Recalcula y refresca el badge con el estado actual."""
+        current_total = get_notificaciones_count()
+        unseen = notif_manager.get_count_no_vistas(current_total)
+        badge_text.value = str(unseen)
+        badge_container.visible = unseen > 0
+        page.update()
+
+    def on_nav_click(route: str):
+        # Refrescar badge antes de navegar a cualquier vista
+        refresh_badge()
+        navigate(route)
 
     def nav_item(text, route):
         return ft.TextButton(
@@ -30,7 +65,7 @@ def NavBar(page, navigate):
                 size=16,
                 weight=ft.FontWeight.W_600,
             ), 
-            on_click=lambda _: navigate(route),
+            on_click=lambda _: on_nav_click(route),
         )
 
     libros_menu = ft.MenuBar(
@@ -123,20 +158,7 @@ def NavBar(page, navigate):
                                     tooltip="Notificaciones de devoluciones",
                                     on_click=ir_a_notificaciones,
                                 ),
-                                ft.Container(
-                                    content=ft.Text(
-                                        str(notif_count),
-                                        size=11,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=ft.Colors.WHITE,
-                                    ),
-                                    bgcolor=ft.Colors.RED_600,
-                                    border_radius=10,
-                                    padding=ft.padding.symmetric(horizontal=6, vertical=2),
-                                    top=8,
-                                    right=8,
-                                    visible=notif_count > 0,
-                                ),
+                                badge_container,
                             ]
                         ),
                         width=48,

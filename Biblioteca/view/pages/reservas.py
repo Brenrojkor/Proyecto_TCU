@@ -61,6 +61,7 @@ class ReservasPage(ft.Column):
                 ft.dropdown.Option("PRESTADO", "🔵 Prestado"),
                 ft.dropdown.Option("DEVUELTO", "✅ Devuelto"),
                 ft.dropdown.Option("NO DEVUELTO", "⚠️ Vencido"),
+                ft.dropdown.Option("A SALA", "🏫 A sala"),
             ],
         )
 
@@ -121,6 +122,10 @@ class ReservasPage(ft.Column):
                 estado_color = "#d32f2f"
                 estado_icon = "⚠"
                 texto_estado = "Vencido"
+            elif estado == "A SALA":
+                estado_color = "#6a1b9a"
+                estado_icon = "🏫"
+                texto_estado = "A sala"
             else:
                 estado_color = "#1976d2"
                 estado_icon = "📚"
@@ -202,6 +207,26 @@ class ReservasPage(ft.Column):
                                     on_click=lambda e, rr=r: registrar_devolucion(rr) if estado != "DEVUELTO" else None,
                                 ),
                                 ft.Container(
+                                    content=ft.Icon(ft.Icons.EVENT_AVAILABLE_ROUNDED, color=ft.Colors.WHITE, size=18),
+                                    bgcolor="#0288d1",
+                                    width=36,
+                                    height=36,
+                                    border_radius=8,
+                                    alignment=ft.Alignment(0, 0),
+                                    tooltip="Renovar préstamo",
+                                    on_click=lambda e, rr=r: renovar_prestamo(rr) if estado != "DEVUELTO" else None,
+                                ),
+                                ft.Container(
+                                    content=ft.Icon(ft.Icons.REPORT_ROUNDED, color=ft.Colors.WHITE, size=18),
+                                    bgcolor="#d32f2f" if estado == "PRESTADO" else "#9e9e9e",
+                                    width=36,
+                                    height=36,
+                                    border_radius=8,
+                                    alignment=ft.Alignment(0, 0),
+                                    tooltip="Marcar NO DEVUELTO" if estado == "PRESTADO" else "No disponible",
+                                    on_click=lambda e, rr=r: marcar_no_devuelto(rr) if estado == "PRESTADO" else None,
+                                ),
+                                ft.Container(
                                     content=ft.Icon(ft.Icons.HISTORY_ROUNDED, color=ft.Colors.WHITE, size=18),
                                     bgcolor="#1976d2",
                                     width=36,
@@ -255,7 +280,30 @@ class ReservasPage(ft.Column):
                     
                     # Calcular estado
                     if r.get("fecha_devolucion_real"):
-                        r["estado"] = "DEVUELTO"
+                        # A SALA si se devolvió el mismo día
+                        try:
+                            fp = r.get("fecha_prestamo")
+                            fr = r.get("fecha_devolucion_real")
+                            if hasattr(fp, 'date'):
+                                fp_date = fp.date()
+                            elif isinstance(fp, str):
+                                fp_date = datetime.strptime(fp, "%Y-%m-%d").date()
+                            else:
+                                fp_date = None
+
+                            if hasattr(fr, 'date'):
+                                fr_date = fr.date()
+                            elif isinstance(fr, str):
+                                fr_date = datetime.strptime(fr, "%Y-%m-%d").date()
+                            else:
+                                fr_date = None
+
+                            if fp_date and fr_date and fp_date == fr_date:
+                                r["estado"] = "A SALA"
+                            else:
+                                r["estado"] = "DEVUELTO"
+                        except:
+                            r["estado"] = "DEVUELTO"
                     elif r.get("fecha_devolucion_esperada"):
                         try:
                             fecha_esperada = r["fecha_devolucion_esperada"]
@@ -389,6 +437,180 @@ class ReservasPage(ft.Column):
                         icon=ft.Icons.CHECK_ROUNDED,
                         on_click=guardar_devolucion,
                         bgcolor="#2e7d32",
+                        color=ft.Colors.WHITE,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+
+            self._page.overlay.append(dlg)
+            dlg.open = True
+            self._page.update()
+
+        # =========================
+        # Renovar préstamo (extender fecha esperada)
+        # =========================
+        def renovar_prestamo(reserva: dict):
+            # Calcular fecha base (hoy o la esperada si es futura)
+            base_date = datetime.now().date()
+            fecha_esperada = reserva.get("fecha_devolucion_esperada")
+            try:
+                if isinstance(fecha_esperada, str) and fecha_esperada:
+                    parsed = datetime.strptime(fecha_esperada, "%Y-%m-%d").date()
+                    base_date = parsed if parsed > base_date else base_date
+                elif hasattr(fecha_esperada, "date") and fecha_esperada:
+                    parsed = fecha_esperada.date()
+                    base_date = parsed if parsed > base_date else base_date
+            except Exception:
+                pass
+
+            sugerida = (base_date + timedelta(days=20)).strftime("%Y-%m-%d")
+
+            nueva_fecha_field = ft.TextField(
+                label="Nueva fecha de devolución",
+                hint_text="YYYY-MM-DD",
+                prefix_icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
+                value=sugerida,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+            )
+
+            def confirmar_renovacion(e):
+                try:
+                    # Validar formato
+                    datetime.strptime((nueva_fecha_field.value or "").strip(), "%Y-%m-%d")
+                    self._db.actualizar_fecha_devolucion_esperada(
+                        int(reserva.get("id_reserva")),
+                        (nueva_fecha_field.value or "").strip()
+                    )
+                    snack("✅ Préstamo renovado correctamente")
+                    dlg.open = False
+                    self._page.update()
+                    cargar_reservas()
+                except ValueError:
+                    snack("❌ Formato de fecha inválido. Use YYYY-MM-DD", ok=False)
+                except Exception as ex:
+                    snack(f"❌ Error: {str(ex)}", ok=False)
+
+            dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.EVENT_AVAILABLE_ROUNDED, color="#0288d1", size=28),
+                    ft.Text("Renovar Préstamo", size=20, weight=ft.FontWeight.BOLD, color="#263238")
+                ]),
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.Icons.BOOK_ROUNDED, color="#1976d2", size=20),
+                                    ft.Text("Libro:", weight=ft.FontWeight.BOLD, size=14),
+                                    ft.Text(reserva.get("libro_titulo", ""), size=14, color="#546e7a"),
+                                ]),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.PERSON_ROUNDED, color="#1976d2", size=20),
+                                    ft.Text("Usuario:", weight=ft.FontWeight.BOLD, size=14),
+                                    ft.Text(reserva.get("cedula_usuario", ""), size=14, color="#546e7a"),
+                                ]),
+                            ], spacing=10),
+                            bgcolor="#e3f2fd",
+                            padding=15,
+                            border_radius=8,
+                        ),
+                        ft.Divider(height=10, color="transparent"),
+                        nueva_fecha_field,
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
+                                ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
+                            ]),
+                            bgcolor="#e3f2fd",
+                            padding=10,
+                            border_radius=6,
+                        ),
+                    ], tight=True, spacing=12),
+                    width=500,
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update()),
+                    ft.ElevatedButton(
+                        "Confirmar Renovación",
+                        icon=ft.Icons.CHECK_ROUNDED,
+                        on_click=confirmar_renovacion,
+                        bgcolor="#0288d1",
+                        color=ft.Colors.WHITE,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+
+            self._page.overlay.append(dlg)
+            dlg.open = True
+            self._page.update()
+
+        # =========================
+        # Marcar NO DEVUELTO
+        # =========================
+        def marcar_no_devuelto(reserva: dict):
+            obs_field = ft.TextField(
+                label="Observaciones (opcional)",
+                multiline=True,
+                min_lines=2,
+                max_lines=4,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+            )
+
+            def confirmar_no_devuelto(e):
+                try:
+                    self._db.marcar_no_devuelto(
+                        int(reserva.get("id_reserva")),
+                        obs_field.value
+                    )
+                    snack("⚠️ Marcado como NO DEVUELTO")
+                    dlg.open = False
+                    self._page.update()
+                    cargar_reservas()
+                except Exception as ex:
+                    snack(f"❌ Error: {str(ex)}", ok=False)
+
+            dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.REPORT_ROUNDED, color="#d32f2f", size=28),
+                    ft.Text("Marcar NO DEVUELTO", size=20, weight=ft.FontWeight.BOLD)
+                ]),
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.Icons.BOOK_ROUNDED, color="#1976d2", size=20),
+                                    ft.Text("Libro:", weight=ft.FontWeight.BOLD, size=14),
+                                    ft.Text(reserva.get("libro_titulo", ""), size=14, color="#546e7a"),
+                                ]),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.PERSON_ROUNDED, color="#1976d2", size=20),
+                                    ft.Text("Usuario:", weight=ft.FontWeight.BOLD, size=14),
+                                    ft.Text(reserva.get("cedula_usuario", ""), size=14, color="#546e7a"),
+                                ]),
+                            ], spacing=10),
+                            bgcolor="#fdecea",
+                            padding=15,
+                            border_radius=8,
+                        ),
+                        ft.Divider(height=10, color="transparent"),
+                        obs_field,
+                    ], spacing=12),
+                    width=500,
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update()),
+                    ft.ElevatedButton(
+                        "Confirmar",
+                        icon=ft.Icons.CHECK_ROUNDED,
+                        on_click=confirmar_no_devuelto,
+                        bgcolor="#d32f2f",
                         color=ft.Colors.WHITE,
                     ),
                 ],
@@ -675,8 +897,8 @@ class ReservasPage(ft.Column):
                 ] if usuarios_activos else [ft.dropdown.Option("", "No hay usuarios disponibles")],
             )
             
-            # Calcular fecha sugerida (15 días desde hoy)
-            fecha_sugerida = (datetime.now() + timedelta(days=15)).strftime("%Y-%m-%d")
+            # Calcular fecha sugerida (20 días desde hoy)
+            fecha_sugerida = (datetime.now() + timedelta(days=20)).strftime("%Y-%m-%d")
             
             fecha_dev = ft.TextField(
                 label="Fecha de Devolución Esperada *",
@@ -719,6 +941,50 @@ class ReservasPage(ft.Column):
                     print(traceback.format_exc())
                     snack(f"❌ Error: {str(ex)}", ok=False)
 
+            def guardar_a_sala(ev):
+                # Validaciones iguales
+                if not libro_dd.value:
+                    snack("❌ Debe seleccionar un libro", ok=False)
+                    return
+                if not identificacion_dd.value or not identificacion_dd.value.strip():
+                    snack("❌ Debe seleccionar un usuario", ok=False)
+                    return
+
+                try:
+                    hoy_str = datetime.now().strftime("%Y-%m-%d")
+                    # Crear préstamo normal con devolución esperada hoy
+                    self._db.crear_prestamo(
+                        int(libro_dd.value),
+                        identificacion_dd.value.strip(),
+                        hoy_str,
+                    )
+                    # Buscar el préstamo recién creado
+                    prestamos = self._db.get_prestamos()
+                    candidato = None
+                    for p in prestamos:
+                        if (
+                            int(p.get("id_libro", 0)) == int(libro_dd.value)
+                            and str(p.get("identificacion_usuario", "")).strip() == identificacion_dd.value.strip()
+                        ):
+                            candidato = p
+                            break
+                    if not candidato:
+                        snack("⚠️ No pude localizar el préstamo recién creado, pero se registró.")
+                    else:
+                        # Marcar devolución inmediata
+                        self._db.actualizar_devolucion_prestamo(
+                            int(candidato.get("id_prestamo")),
+                            observaciones="Lectura en sala",
+                        )
+                    snack("✅ Préstamo 'A sala' registrado y devuelto hoy")
+                    dlg.open = False
+                    self._page.update()
+                    cargar_reservas()
+                except Exception as ex:
+                    import traceback
+                    print(traceback.format_exc())
+                    snack(f"❌ Error: {str(ex)}", ok=False)
+
             dlg = ft.AlertDialog(
                 modal=True,
                 title=ft.Row([
@@ -735,7 +1001,7 @@ class ReservasPage(ft.Column):
                         ft.Container(
                             content=ft.Row([
                                 ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
-                                ft.Text("Fecha sugerida: 15 días desde hoy", size=12, color="#757575", italic=True),
+                                ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
                             ]),
                             bgcolor="#e3f2fd",
                             padding=10,
@@ -754,6 +1020,13 @@ class ReservasPage(ft.Column):
                         icon=ft.Icons.CHECK_ROUNDED,
                         on_click=guardar,
                         bgcolor="#1976d2",
+                        color=ft.Colors.WHITE,
+                    ),
+                    ft.ElevatedButton(
+                        "Crear 'A sala'",
+                        icon=ft.Icons.SCHOOL_ROUNDED,
+                        on_click=guardar_a_sala,
+                        bgcolor="#6a1b9a",
                         color=ft.Colors.WHITE,
                     )
                 ],

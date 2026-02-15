@@ -584,10 +584,7 @@ class Database:
         cur.close()
         return data
 
-        # =========================
-    # PRÉSTAMOS (RESERVAS)
     # =========================
-        # =========================
     # PRÉSTAMOS (RESERVAS)
     # =========================
 
@@ -697,6 +694,60 @@ class Database:
         finally:
             cur.close()
 
+    def actualizar_fecha_devolucion_esperada(self, id_prestamo: int, nueva_fecha: str):
+        """Actualiza la fecha de devolución esperada de un préstamo (renovación)."""
+        cur = self.conn.cursor()
+        try:
+            # Intentar con stored procedure si existe
+            cur.execute(
+                "EXEC dbo.sp_ActualizarFechaDevolucionEsperada @id_prestamo = ?, @nueva_fecha = ?",
+                (id_prestamo, nueva_fecha)
+            )
+            self.conn.commit()
+        except Exception:
+            try:
+                cur.execute(
+                    """
+                    UPDATE Prestamos
+                    SET fecha_devolucion_esperada = CAST(? AS DATE),
+                        estado = CASE WHEN fecha_devolucion_real IS NULL THEN 'PRESTADO' ELSE estado END
+                    WHERE id_prestamo = ?
+                    """,
+                    (nueva_fecha, id_prestamo)
+                )
+                self.conn.commit()
+            except Exception as ex:
+                raise Exception(f"Error al actualizar fecha esperada: {str(ex)}")
+        finally:
+            cur.close()
+
+    def marcar_no_devuelto(self, id_prestamo: int, observaciones: str = None):
+        """Marca explícitamente un préstamo como NO DEVUELTO."""
+        cur = self.conn.cursor()
+        try:
+            # Intentar con SP si existe
+            cur.execute(
+                "EXEC dbo.sp_MarcarNoDevuelto @id_prestamo = ?, @observaciones = ?",
+                (id_prestamo, observaciones)
+            )
+            self.conn.commit()
+        except Exception:
+            try:
+                cur.execute(
+                    """
+                    UPDATE Prestamos
+                    SET estado = 'NO DEVUELTO',
+                        observaciones = COALESCE(?, observaciones)
+                    WHERE id_prestamo = ?
+                    """,
+                    (observaciones, id_prestamo)
+                )
+                self.conn.commit()
+            except Exception as ex:
+                raise Exception(f"Error al marcar NO DEVUELTO: {str(ex)}")
+        finally:
+            cur.close()
+
     def eliminar_prestamo(self, id_prestamo):
         """Elimina un préstamo"""
         cur = self.conn.cursor()
@@ -756,6 +807,77 @@ class Database:
             return []
         finally:
             cur.close()
+
+    # =========================
+    # NOTIFICACIONES - Préstamos
+    # =========================
+    def get_prestamos_proximos_vencer(self, dias_anticipacion: int = 3):
+        """Obtiene los préstamos próximos a vencer en los próximos 'dias_anticipacion' días."""
+        cur = self.conn.cursor()
+        try:
+            # Intentar usar un stored procedure si existe
+            cur.execute(
+                "EXEC dbo.sp_ObtenerPrestamosProximosVencer @dias = ?",
+                (dias_anticipacion,)
+            )
+        except Exception:
+            # Fallback a consulta directa
+            cur.execute("""
+                SELECT 
+                    p.id_prestamo,
+                    l.titulo as libro_titulo,
+                    u.identificacion as identificacion_usuario,
+                    u.nombre_completo as nombre_usuario,
+                    p.fecha_prestamo,
+                    p.fecha_devolucion_esperada,
+                    p.estado,
+                    DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) as dias_restantes
+                FROM Prestamos p
+                INNER JOIN Libro l ON p.id_libro = l.id_libro
+                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
+                WHERE p.estado = 'PRESTADO'
+                    AND p.fecha_devolucion_real IS NULL
+                    AND p.fecha_devolucion_esperada IS NOT NULL
+                    AND DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) <= ?
+                    AND DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) >= 0
+                ORDER BY p.fecha_devolucion_esperada ASC
+            """, (dias_anticipacion,))
+
+        columnas = [col[0] for col in cur.description]
+        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        cur.close()
+        return data
+
+    def get_prestamos_vencidos(self):
+        """Obtiene los préstamos que ya vencieron y aún no se devolvieron."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute("EXEC dbo.sp_ObtenerPrestamosVencidos")
+        except Exception:
+            cur.execute("""
+                SELECT 
+                    p.id_prestamo,
+                    l.titulo as libro_titulo,
+                    u.identificacion as identificacion_usuario,
+                    u.nombre_completo as nombre_usuario,
+                    p.fecha_prestamo,
+                    p.fecha_devolucion_esperada,
+                    p.estado,
+                    DATEDIFF(day, p.fecha_devolucion_esperada, CAST(GETDATE() AS DATE)) as dias_vencidos
+                FROM Prestamos p
+                INNER JOIN Libro l ON p.id_libro = l.id_libro
+                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
+                WHERE (p.estado IN ('PRESTADO', 'NO DEVUELTO'))
+                    AND p.fecha_devolucion_real IS NULL
+                    AND p.fecha_devolucion_esperada IS NOT NULL
+                    AND p.fecha_devolucion_esperada < CAST(GETDATE() AS DATE)
+                ORDER BY p.fecha_devolucion_esperada ASC
+            """)
+
+        columnas = [col[0] for col in cur.description]
+        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        cur.close()
+        return data
 
     
     

@@ -82,57 +82,56 @@ class HomePage(ft.Column):
         # Picker PDF
         # =========================
         def pick_pdf_windows() -> str | None:
-            powershell_51 = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-
-            ps_script = r'''
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-$owner = New-Object System.Windows.Forms.Form
-$owner.Size = New-Object System.Drawing.Size(1,1)
-$owner.StartPosition = "Manual"
-$owner.Location = New-Object System.Drawing.Point(-32000,-32000)
-$owner.TopMost = $true
-$owner.ShowInTaskbar = $false
-$owner.Opacity = 0
-$owner.Show()
-
-$dlg = New-Object System.Windows.Forms.OpenFileDialog
-$dlg.Filter = "Archivos PDF (.pdf)|.pdf"
-$dlg.Multiselect = $false
-$dlg.Title = "Selecciona un archivo PDF"
-
-$result = $dlg.ShowDialog($owner)
-$owner.Close()
-
-if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-    Write-Output $dlg.FileName
-}
-'''
-
+            """Abre el selector de archivos rápidamente. Primero intenta Tkinter (rápido),
+            si falla, usa PowerShell como respaldo."""
+            # 1) Intento con Tkinter (rápido y directo)
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".ps1", mode="w", encoding="utf-8") as tmp:
-                    tmp.write(ps_script)
-                    ps1_path = tmp.name
+                from tkinter import Tk
+                from tkinter.filedialog import askopenfilename
 
+                root = Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                initial_dir = os.path.join(os.path.expanduser("~"), "Documents")
+                if not os.path.isdir(initial_dir):
+                    initial_dir = os.path.expanduser("~")
+                path = askopenfilename(
+                    title="Selecciona un archivo PDF",
+                    filetypes=[("PDF files", "*.pdf")],
+                    initialdir=initial_dir,
+                )
+                root.destroy()
+                if path:
+                    return path
+            except Exception:
+                # Continuar a PowerShell
+                pass
+
+            # 2) Respaldo con PowerShell (sin archivo temporal, comando inline)
+            try:
+                powershell_51 = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
                 creationflags = 0
                 if sys.platform.startswith("win"):
                     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
                 exe = powershell_51 if os.path.exists(powershell_51) else "powershell.exe"
-
-                result = subprocess.run(
-                    [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", ps1_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                    creationflags=creationflags
+                ps_command = (
+                    "Add-Type -AssemblyName System.Windows.Forms;"
+                    "$ofd = New-Object System.Windows.Forms.OpenFileDialog;"
+                    "$ofd.Filter = \"Archivos PDF (.pdf)|*.pdf\";"
+                    "$ofd.Multiselect = $false;"
+                    "$ofd.Title = \"Selecciona un archivo PDF\";"
+                    "$null = $ofd.ShowDialog();"
+                    "if ($ofd.FileName) { Write-Output $ofd.FileName }"
                 )
 
-                try:
-                    os.remove(ps1_path)
-                except Exception:
-                    pass
+                result = subprocess.run(
+                    [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-Command", ps_command],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    creationflags=creationflags,
+                )
 
                 if result.returncode == 0:
                     path = (result.stdout or "").strip()
@@ -146,22 +145,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             except Exception as ex:
                 snack(f"PowerShell falló: {ex}")
 
-            try:
-                from tkinter import Tk
-                from tkinter.filedialog import askopenfilename
-
-                root = Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                path = askopenfilename(
-                    title="Selecciona un archivo PDF",
-                    filetypes=[("PDF files", "*.pdf")]
-                )
-                root.destroy()
-                return path if path else None
-            except Exception as ex:
-                snack(f"No se pudo abrir selector (Tkinter): {ex}")
-                return None
+            return None
 
         # =========================
         # UI
@@ -249,24 +233,16 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         # Subir PDF
         # =========================
         def subir_pdf_para_libro(id_libro: int):
-            path = pick_pdf_windows()
-            if not path:
-                return
-
-            if not path.lower().endswith(".pdf"):
-                snack("Solo se permiten archivos PDF.")
-                return
-
-            with open(path, "rb") as f:
-                pdf_bytes = f.read()
-
-            self._db.upsert_libro_pdf(
-                id_libro=id_libro,
-                nombre_archivo=safe_filename(os.path.basename(path)),
-                contenido=pdf_bytes,
-            )
-
-            snack("PDF guardado correctamente ✅")
+            # Guardar contexto y abrir inmediatamente el selector de archivos
+            self._libro_para_pdf = int(id_libro)
+            try:
+                self._file_picker.pick_files(
+                    allow_multiple=False,
+                    file_type=ft.FilePickerFileType.CUSTOM,
+                    allowed_extensions=["pdf"],
+                )
+            except Exception as ex:
+                snack(f"No se pudo abrir el selector: {ex}")
 
         # =========================
         # Mostrar libros
