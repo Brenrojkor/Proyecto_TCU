@@ -233,17 +233,24 @@ class HomePage(ft.Column):
         # Subir PDF
         # =========================
         def subir_pdf_para_libro(id_libro: int):
-            # Guardar contexto y abrir inmediatamente el selector de archivos
-            self._libro_para_pdf = int(id_libro)
-            try:
-                self._file_picker.pick_files(
-                    allow_multiple=False,
-                    file_type=ft.FilePickerFileType.CUSTOM,
-                    allowed_extensions=["pdf"],
-                )
-            except Exception as ex:
-                snack(f"No se pudo abrir el selector: {ex}")
+            path = pick_pdf_windows()
+            if not path:
+                return
 
+            if not path.lower().endswith(".pdf"):
+                snack("Solo se permiten archivos PDF.")
+                return
+
+            with open(path, "rb") as f:
+                pdf_bytes = f.read()
+
+            self._db.upsert_libro_pdf(
+                id_libro=id_libro,
+                nombre_archivo=safe_filename(os.path.basename(path)),
+                contenido=pdf_bytes,
+            )
+
+            snack("PDF guardado correctamente ✅")
         # =========================
         # Mostrar libros
         # =========================
