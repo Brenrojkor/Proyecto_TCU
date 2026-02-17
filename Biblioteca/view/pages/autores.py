@@ -1,5 +1,6 @@
 import flet as ft
 from model.database import Database
+import math
 
 class AutoresPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
@@ -9,95 +10,223 @@ class AutoresPage(ft.Column):
         self.db = Database()
         self.dialog = None
         self.autor_editando = None
+        self._autores_cache = []
+        self._autores_filtrados = []
+        self._page_size = 5
+        self._pagina_actual = 1
+
+        # =========================
+        # Métricas
+        # =========================
+        self.total_autores = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
 
 
         self.btn_crear = ft.ElevatedButton(
             content=ft.Row(
-                [ft.Icon(ft.Icons.ADD), ft.Text("Crear autor")],
+                [ft.Icon(ft.Icons.ADD_ROUNDED, size=20), ft.Text("Crear autor", size=14, weight=ft.FontWeight.W_500)],
                 spacing=8,
             ),
             on_click=self.abrir_dialogo_crear,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=2,
+            ),
         )
 
 
         self.search_input = ft.TextField(
             hint_text="Buscar autor...",
-            prefix_icon=ft.Icons.SEARCH,
-            width=320,
-            height=44,
-            bgcolor="#f5f7fa",
-            border_radius=8,
-            border_color="#cfd8dc",
+            prefix_icon=ft.Icons.SEARCH_ROUNDED,
+            width=500,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border_color="#e0e0e0",
             focused_border_color="#1976d2",
+            focused_border_width=2,
             text_size=14,
-            on_change=lambda e: self.mostrar_autores(),
+            content_padding=ft.padding.only(left=15, right=15, top=10, bottom=10),
+            on_change=lambda e: self.mostrar_autores(reset_pagina=True),
         )
 
 
         self.autores_table = ft.DataTable(
             bgcolor=ft.Colors.WHITE,
-            border=ft.border.all(1, "#d0d7de"),
-            border_radius=8,
-             width=990,
-            heading_row_color="#e3f2fd",
-            heading_row_height=48,
-            data_row_min_height=52,
-            data_row_max_height=52,
-            column_spacing=50,
-            horizontal_margin=16,
+            border=ft.border.all(1, "#e0e0e0"),
+            border_radius=12,
+            width=1200,
+            heading_row_color="#f5f7fa",
+            heading_row_height=56,
+            data_row_min_height=60,
+            data_row_max_height=65,
+            column_spacing=30,
+            horizontal_margin=20,
+            divider_thickness=0.5,
             columns=[
-                ft.DataColumn(ft.Text("Nombre Completo", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Nacionalidad", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(ft.Text("Nombre Completo", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Nacionalidad", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
             ],
             rows=[],
         )
 
 
+        # =========================
+        # Cards de estadísticas (estilo categorías)
+        # =========================
+        def crear_stat_card(titulo, valor_widget, icon, color, bgcolor):
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(icon, color=ft.Colors.WHITE, size=28),
+                            bgcolor=color,
+                            width=56,
+                            height=56,
+                            border_radius=12,
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                        ft.Column([
+                            valor_widget,
+                            ft.Text(titulo, size=13, color="#757575", weight=ft.FontWeight.W_500),
+                        ], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+                    ], alignment=ft.MainAxisAlignment.START, spacing=15),
+                ], spacing=0),
+                bgcolor=bgcolor,
+                border=ft.border.all(1, "#e0e0e0"),
+                border_radius=12,
+                padding=20,
+                width=250,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=10,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 2),
+                ),
+            )
+
+        stats_row = ft.Row([
+            crear_stat_card("Total Autores", self.total_autores, ft.Icons.PEOPLE_ROUNDED, "#5e35b1", ft.Colors.WHITE),
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+
+        # =========================
+        # Paginación
+        # =========================
+        self._pagination_label = ft.Text("Página 1 de 1", size=12, color="#546e7a")
+
+        def change_page(delta: int):
+            total = max(1, math.ceil(len(self._autores_filtrados) / self._page_size))
+            self._pagina_actual = min(max(1, self._pagina_actual + delta), total)
+            self.mostrar_autores()
+
+        self._btn_prev = ft.IconButton(
+            icon=ft.Icons.CHEVRON_LEFT,
+            icon_color="#546e7a",
+            tooltip="Anterior",
+            on_click=lambda e: change_page(-1),
+        )
+        self._btn_next = ft.IconButton(
+            icon=ft.Icons.CHEVRON_RIGHT,
+            icon_color="#546e7a",
+            tooltip="Siguiente",
+            on_click=lambda e: change_page(1),
+        )
+
+        # =========================
+        # Header estilo categorías
+        # =========================
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
             content=ft.Row(
                 [
-                    ft.Text(
-                        "Autores Registrados",
-                        size=22,
-                        weight=ft.FontWeight.BOLD,
-                        color="#38638f",
-                    ),
-                    self.btn_crear,
+                    ft.Row([
+                        ft.Icon(ft.Icons.CREATE, color="#1565c0", size=32),
+                        ft.Text("Gestión de Autores", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
+                    ], spacing=12),
+                    ft.Row([
+                        self.btn_crear,
+                    ], spacing=12),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
         )
 
+        # Barra de filtros
+        filtros_bar = ft.Container(
+            content=ft.Row(
+                [self.search_input],
+                alignment=ft.MainAxisAlignment.START,
+                spacing=15,
+            ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=15),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+        )
 
-        container = ft.Container(
+        # Contenedor de tabla
+        tabla_container = ft.Container(
             content=ft.Column(
                 [
-                    header,
-                    ft.Row(
-                        [self.search_input],
-                        alignment=ft.MainAxisAlignment.END,
+                    ft.Container(
+                        content=self.autores_table,
+                        alignment=ft.Alignment.CENTER,
                     ),
-                    ft.Row(
-                        [self.autores_table],
-                        alignment=ft.MainAxisAlignment.CENTER,
+                    ft.Container(
+                        content=ft.Row(
+                            [self._btn_prev, self._pagination_label, self._btn_next],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=6,
+                        ),
+                        padding=ft.padding.only(top=8),
                     ),
                 ],
-                spacing=20,
+                scroll=ft.ScrollMode.AUTO,
             ),
             padding=20,
             bgcolor=ft.Colors.WHITE,
-            border_radius=8,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+            margin=ft.margin.symmetric(horizontal=30),
             expand=True,
         )
 
         self.controls = [
-            ft.Row(
-                [container],
-                alignment=ft.MainAxisAlignment.CENTER,
+            ft.Container(
+                content=ft.Column(
+                    [
+                        header,
+                        ft.Container(content=stats_row, padding=ft.padding.symmetric(horizontal=30)),
+                        ft.Container(content=filtros_bar, padding=ft.padding.symmetric(horizontal=30)),
+                        ft.Container(content=tabla_container, padding=0, expand=True),
+                    ],
+                    spacing=20,
+                    expand=True,
+                ),
+                bgcolor="#f5f7fa",
+                padding=ft.padding.symmetric(vertical=20),
                 expand=True,
             )
         ]
@@ -188,15 +317,33 @@ class AutoresPage(ft.Column):
             self._page.update()
 
 
-    def mostrar_autores(self):
+    def mostrar_autores(self, reset_pagina: bool = False):
         self.autores_table.rows.clear()
-        filtro = (self.search_input.value or "").lower()
+        autores = self.db.get_autores()
+        self._autores_cache = autores or []
+        self.total_autores.value = str(len(self._autores_cache))
+        filtro = (self.search_input.value or "").lower().strip()
 
-        for autor in self.db.get_autores():
+        filtrados = []
+        for autor in self._autores_cache:
             texto = f'{autor.get("nombre_completo", "")} {autor.get("nacionalidad","")}'.lower()
             if filtro and filtro not in texto:
                 continue
+            filtrados.append(autor)
 
+        self._autores_filtrados = filtrados
+
+        total_pages = max(1, math.ceil(len(filtrados) / self._page_size))
+        if reset_pagina:
+            self._pagina_actual = 1
+        if self._pagina_actual > total_pages:
+            self._pagina_actual = total_pages
+
+        start = (self._pagina_actual - 1) * self._page_size
+        end = start + self._page_size
+        pagina_items = filtrados[start:end]
+
+        for autor in pagina_items:
             self.autores_table.rows.append(
                 ft.DataRow(
                     cells=[
@@ -224,6 +371,13 @@ class AutoresPage(ft.Column):
                     ]
                 )
             )
+
+        try:
+            self._pagination_label.value = f"Página {self._pagina_actual} de {total_pages}"
+            self._btn_prev.disabled = self._pagina_actual <= 1
+            self._btn_next.disabled = self._pagina_actual >= total_pages
+        except Exception:
+            pass
 
         self._page.update()
 

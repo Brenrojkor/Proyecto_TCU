@@ -9,6 +9,7 @@ import subprocess
 from datetime import datetime, timedelta
 from openpyxl import Workbook
 import calendar
+import math
 
 
 class HomePage(ft.Column):
@@ -18,6 +19,8 @@ class HomePage(ft.Column):
         self.navigate = navigate
         self._db = Database()
         self._estado_actual = "TODOS"
+        self._page_size = 5
+        self._pagina_actual = 1
 
         # =========================
         # Helpers
@@ -151,73 +154,97 @@ class HomePage(ft.Column):
         # UI
         # =========================
         button_crear_libro = ft.ElevatedButton(
-            content=ft.Row(
-                [
-                    ft.Icon(ft.Icons.ADD),
-                    ft.Text("Crear libro"),
-                ],
-                spacing=8,
-            ),
+            content=ft.Row([
+                ft.Icon(ft.Icons.ADD_ROUNDED, size=20),
+                ft.Text("Crear libro", size=14, weight=ft.FontWeight.W_500)
+            ], spacing=8),
             on_click=self.abrir_dialogo_crear_libro,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=2,
+            ),
         )
 
         search_input = ft.TextField(
-            hint_text="Buscar en todo...",
-            prefix_icon=ft.Icons.SEARCH,
-            width=360,
-            height=44,
-            bgcolor="#f5f7fa",
-            border_radius=8,
-            border_color="#cfd8dc",
+            hint_text="Buscar por libro, código o autor...",
+            prefix_icon=ft.Icons.SEARCH_ROUNDED,
+            width=500,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border_color="#e0e0e0",
             focused_border_color="#1976d2",
+            focused_border_width=2,
             text_size=14,
+            content_padding=ft.padding.only(left=15, right=15, top=10, bottom=10),
         )
 
-        # Botones de filtro Activos/Inactivos
+        # Filtro de estado (Dropdown en lugar de botones)
         def set_estado(estado: str):
             self._estado_actual = estado
-            aplicar_filtros(q=search_input.value, estado=self._estado_actual)
+            aplicar_filtros(q=search_input.value, estado=self._estado_actual, reset_pagina=True)
 
-        btn_activos = ft.ElevatedButton(
-            content=ft.Row([
-                ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.WHITE, size=18),
-                ft.Text("Ver Activos", color=ft.Colors.WHITE),
-            ], spacing=6),
-            bgcolor=ft.Colors.GREEN,
-            on_click=lambda e: set_estado("ACTIVOS"),
+        estado_dd = ft.Dropdown(
+            width=200,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border_color="#e0e0e0",
+            focused_border_color="#1976d2",
+            value="TODOS",
+            label="Filtrar",
+            text_size=14,
+            options=[
+                ft.dropdown.Option("TODOS", "Todos"),
+                ft.dropdown.Option("ACTIVOS", "Activos"),
+                ft.dropdown.Option("INACTIVOS", "Inactivos"),
+            ],
         )
+        # asignar handler luego (compatibilidad Flet)
+        estado_dd.on_change = lambda e: set_estado(e.control.value)
 
-        btn_inactivos = ft.ElevatedButton(
-            content=ft.Row([
-                ft.Icon(ft.Icons.BLOCK, color=ft.Colors.WHITE, size=18),
-                ft.Text("Ver Inactivos", color=ft.Colors.WHITE),
-            ], spacing=6),
-            bgcolor=ft.Colors.RED,
-            on_click=lambda e: set_estado("INACTIVOS"),
-        )
+        # Filtro de tipo (Digital / Físico)
+        def set_tipo(tipo: str):
+            self._tipo_actual = tipo
+            aplicar_filtros(q=search_input.value, estado=self._estado_actual, tipo=tipo, reset_pagina=True)
 
-        btn_todos = ft.ElevatedButton(
-            content=ft.Text("Todos"),
-            bgcolor="#eceff1",
-            on_click=lambda e: set_estado("TODOS"),
+        tipo_dd = ft.Dropdown(
+            width=140,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border_color="#e0e0e0",
+            focused_border_color="#1976d2",
+            value="TODOS",
+            label="Tipo",
+            text_size=14,
+            options=[
+                ft.dropdown.Option("TODOS", "Todos"),
+                ft.dropdown.Option("DIGITAL", "Digital"),
+                ft.dropdown.Option("FISICO", "Físico"),
+            ],
         )
+        tipo_dd.on_change = lambda e: set_tipo(e.control.value)
 
         libros_table = ft.DataTable(
             bgcolor=ft.Colors.WHITE,
-            border=ft.border.all(1, "#d0d7de"),
-            border_radius=8,
-            heading_row_color="#e3f2fd",
-            heading_row_height=48,
-            data_row_min_height=52,
-            data_row_max_height=52,
-            column_spacing=40,
-            horizontal_margin=16,
+            border=ft.border.all(1, "#e0e0e0"),
+            border_radius=12,
+            heading_row_color="#f5f7fa",
+            heading_row_height=56,
+            data_row_min_height=60,
+            data_row_max_height=65,
+            column_spacing=48,
+            horizontal_margin=20,
+            divider_thickness=0.5,
             columns=[
                 ft.DataColumn(label=ft.Text("Código de barras", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
 
                 ft.DataColumn(label=ft.Text("Título", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Clasificación DUI", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(label=ft.Text("Categoría", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Autores", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("ISBN", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
                 ft.DataColumn(label=ft.Text("Tipo", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD, color="#0d47a1")),
@@ -228,6 +255,7 @@ class HomePage(ft.Column):
         )
 
         self._libros_cache = []
+        self._libros_filtrados = []
 
         # =========================
         # Subir PDF
@@ -257,7 +285,11 @@ class HomePage(ft.Column):
         def mostrar_libros(e=None):
             libros_table.rows.clear()
             self._libros_cache = self._db.get_libros()
-            aplicar_filtros()
+            try:
+                actualizar_stats()
+            except Exception:
+                pass
+            aplicar_filtros(reset_pagina=True)
 
         self._mostrar_libros = mostrar_libros
 
@@ -280,22 +312,26 @@ class HomePage(ft.Column):
             id_libro = int(libro["id_libro"])
             tipo = (libro.get("tipo") or "").strip().upper()
 
-            # ---- Documentos ----
+            # ---- Documentos (botones compactos con color)
             if tipo == "DIGITAL":
-                btn_cargar = ft.ElevatedButton(
-                    content=ft.Row(
-                        [ft.Icon(ft.Icons.UPLOAD_FILE), ft.Text("Cargar PDF")],
-                        spacing=6,
-                    ),
+                btn_cargar = ft.Container(
+                    content=ft.Row([ft.Icon(ft.Icons.UPLOAD_FILE, color=ft.Colors.WHITE), ft.Text("Cargar", size=12, color=ft.Colors.WHITE)], spacing=6),
                     on_click=lambda e, i=id_libro: subir_pdf_para_libro(i),
+                    bgcolor="#1976d2",
+                    padding=ft.padding.symmetric(horizontal=10),
+                    height=36,
+                    border_radius=8,
+                    alignment=ft.Alignment.CENTER,
                 )
 
-                btn_ver = ft.ElevatedButton(
-                    content=ft.Row(
-                        [ft.Icon(ft.Icons.PICTURE_AS_PDF), ft.Text("Ver PDF")],
-                        spacing=6,
-                    ),
+                btn_ver = ft.Container(
+                    content=ft.Row([ft.Icon(ft.Icons.PICTURE_AS_PDF, color=ft.Colors.WHITE), ft.Text("Ver", size=12, color=ft.Colors.WHITE)], spacing=6),
                     on_click=lambda e, i=id_libro: ver_pdf(i),
+                    bgcolor="#00838f",
+                    padding=ft.padding.symmetric(horizontal=10),
+                    height=36,
+                    border_radius=8,
+                    alignment=ft.Alignment.CENTER,
                 )
 
                 documentos = ft.DataCell(
@@ -370,16 +406,64 @@ class HomePage(ft.Column):
             codigo_barras = (libro.get("codigo_barras", "") or "").strip()
             codigo_barras_short = (codigo_barras[:40] + "…") if len(codigo_barras) > 40 else codigo_barras
 
+            # Celda de código de barras: texto normal (sin badge)
+            codigo_cell = ft.DataCell(
+                ft.Container(
+                    content=ft.Text(codigo_barras_short, text_align=ft.TextAlign.LEFT, size=12),
+                    alignment=ft.Alignment(-1, 0),
+                    height=60,
+                )
+            )
+
+            # Celda tipo con estilo idéntico a 'estado' en reservas (bg sólido, texto blanco)
+            if tipo == "DIGITAL":
+                # color distinto para Digital (resaltado solicitado)
+                tipo_bg = "#ff7043"
+            elif tipo == "FISICO":
+                tipo_bg = "#6a1b9a"
+            else:
+                tipo_bg = "#9e9e9e"
+
+            tipo_cell = ft.DataCell(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(tipo.title(), color=ft.Colors.WHITE, size=12, weight=ft.FontWeight.BOLD),
+                    ], tight=True),
+                    bgcolor=tipo_bg,
+                    padding=ft.padding.symmetric(horizontal=12, vertical=4),
+                    height=36,
+                    border_radius=8,
+                    alignment=ft.Alignment.CENTER,
+                )
+            )
+
+            # Categoría (para mostrar como subtítulo bajo el título)
+            categoria = (libro.get("categoria", "") or "").strip()
+            categoria_short = (categoria[:60] + "…") if len(categoria) > 60 else categoria
+
+            # Título + categoría en una sola celda (similar a reservas: nombre + cédula)
+            titulo = (libro.get("titulo", "") or "").strip()
+            title_cell = ft.DataCell(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(titulo, text_align=ft.TextAlign.LEFT),
+                        ft.Text(categoria_short, size=12, color="#757575", text_align=ft.TextAlign.LEFT),
+                    ], spacing=4, alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.START),
+                    alignment=ft.Alignment(-1, 0),
+                    height=60,
+                    padding=ft.padding.only(top=6, bottom=6),
+                    width=150,
+                )
+            )
+
             return ft.DataRow(
                 cells=[
-                    ft.DataCell(ft.Text(codigo_barras_short, text_align=ft.TextAlign.CENTER)),
-
-                    ft.DataCell(ft.Text(libro.get("titulo", ""), text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(libro.get("clasificacion_dui", "") or "", text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(libro.get("categoria", ""), text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(autores_short, text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.CENTER)),
-                    ft.DataCell(ft.Text(libro.get("tipo", ""), text_align=ft.TextAlign.CENTER)),
+                    codigo_cell,
+                    title_cell,
+                    ft.DataCell(ft.Container(content=ft.Text(libro.get("clasificacion_dui", "") or "", text_align=ft.TextAlign.LEFT), alignment=ft.Alignment(-1, 0), height=60)),
+                    ft.DataCell(ft.Container(content=ft.Text(autores_short, text_align=ft.TextAlign.LEFT), alignment=ft.Alignment(-1, 0), height=60)),
+                    ft.DataCell(ft.Container(content=ft.Text(libro.get("isbn", ""), text_align=ft.TextAlign.LEFT), alignment=ft.Alignment(-1, 0), height=60)),
+                    tipo_cell,
                     documentos,
                     acciones,
                 ]
@@ -401,6 +485,17 @@ class HomePage(ft.Column):
                 return is_activo
             if estado == "INACTIVOS":
                 return not is_activo
+            return True
+
+        def libro_match_tipo(libro: dict, tipo: str) -> bool:
+            t = ((libro.get("tipo") or "").strip() or "").upper()
+            tipo = (tipo or "TODOS").strip().upper()
+            if tipo == "TODOS":
+                return True
+            if tipo == "DIGITAL":
+                return t == "DIGITAL"
+            if tipo == "FISICO":
+                return t == "FISICO"
             return True
 
         def libro_match_texto(libro: dict, q: str) -> bool:
@@ -430,16 +525,60 @@ class HomePage(ft.Column):
             haystack = " | ".join([(v or "") for v in valores]).lower()
             return q in haystack
 
+        # =========================
+        # Paginación
+        # =========================
+        pagination_label = ft.Text("Página 1 de 1", size=12, color="#546e7a")
+
+        def change_page(delta: int):
+            total = max(1, math.ceil(len(self._libros_filtrados) / self._page_size))
+            self._pagina_actual = min(max(1, self._pagina_actual + delta), total)
+            aplicar_filtros()
+
+        btn_prev = ft.IconButton(
+            icon=ft.Icons.CHEVRON_LEFT,
+            icon_color="#546e7a",
+            tooltip="Anterior",
+            on_click=lambda e: change_page(-1),
+        )
+        btn_next = ft.IconButton(
+            icon=ft.Icons.CHEVRON_RIGHT,
+            icon_color="#546e7a",
+            tooltip="Siguiente",
+            on_click=lambda e: change_page(1),
+        )
+
         # ✅ aceptar valores directos (evita leer value viejo)
-        def aplicar_filtros(q=None, estado=None):
+        def aplicar_filtros(q=None, estado=None, tipo=None, reset_pagina: bool = False):
             libros_table.rows.clear()
 
             q = (q if q is not None else (search_input.value or "")).strip().lower()
-            estado = (estado if estado is not None else (self._estado_actual or "TODOS")).strip().upper()
+            estado = (estado if estado is not None else (getattr(estado_dd, 'value', None) or self._estado_actual or "TODOS")).strip().upper()
+            tipo = (tipo if tipo is not None else (getattr(tipo_dd, 'value', None) or getattr(self, '_tipo_actual', 'TODOS') or "TODOS")).strip().upper()
 
+            filtrados = []
             for libro in self._libros_cache:
-                if libro_match_estado(libro, estado) and libro_match_texto(libro, q):
-                    libros_table.rows.append(build_row(libro))
+                if libro_match_estado(libro, estado) and libro_match_texto(libro, q) and libro_match_tipo(libro, tipo):
+                    filtrados.append(libro)
+
+            self._libros_filtrados = filtrados
+
+            total_pages = max(1, math.ceil(len(filtrados) / self._page_size))
+            if reset_pagina:
+                self._pagina_actual = 1
+            if self._pagina_actual > total_pages:
+                self._pagina_actual = total_pages
+
+            start = (self._pagina_actual - 1) * self._page_size
+            end = start + self._page_size
+            pagina_items = filtrados[start:end]
+
+            for libro in pagina_items:
+                libros_table.rows.append(build_row(libro))
+
+            pagination_label.value = f"Página {self._pagina_actual} de {total_pages}"
+            btn_prev.disabled = self._pagina_actual <= 1
+            btn_next.disabled = self._pagina_actual >= total_pages
 
             self._page.update()
 
@@ -447,7 +586,7 @@ class HomePage(ft.Column):
         def on_search_change(e):
             if not self._libros_cache:
                 self._libros_cache = self._db.get_libros()
-            aplicar_filtros(q=e.control.value, estado=self._estado_actual)
+            aplicar_filtros(q=e.control.value, estado=self._estado_actual, reset_pagina=True)
 
         search_input.on_change = on_search_change
 
@@ -525,13 +664,24 @@ class HomePage(ft.Column):
                 "Código de barras",
                 "Título",
                 "Clasificación DUI",
-                "Categoría",
+                "categoria",
                 "Autores",
                 "ISBN",
                 "Tipo",
                 "Activo",
             ]
             ws.append(headers)
+
+            # preparar mapa de categorias
+            categorias_map = {}
+            try:
+                cats = self._db.get_categorias()
+                for c in cats:
+                    cid = c.get("id_categoria") or c.get("id")
+                    if cid is not None:
+                        categorias_map[str(cid)] = c.get("nombre") or c.get("nombre_categoria") or ""
+            except Exception:
+                categorias_map = {}
 
             for libro in seleccion:
                 activo_value = libro.get("activo")
@@ -540,11 +690,14 @@ class HomePage(ft.Column):
                     or activo_value is True
                     or str(activo_value).strip().lower() in ("1", "true")
                 )
+                # intentar resolver nombre de categoria si viene id
+                cat_val = libro.get("id_categoria") if libro.get("id_categoria") is not None else libro.get("categoria")
+                cat_name = categorias_map.get(str(cat_val), libro.get("categoria") or "")
                 ws.append([
                     (libro.get("codigo_barras") or ""),
                     (libro.get("titulo") or ""),
                     (libro.get("clasificacion_dui") or ""),
-                    (libro.get("categoria") or ""),
+                    (cat_name),
                     (libro.get("autores") or ""),
                     (libro.get("isbn") or ""),
                     (libro.get("tipo") or ""),
@@ -626,13 +779,24 @@ class HomePage(ft.Column):
                 "Código de barras",
                 "Título",
                 "Clasificación DUI",
-                "Categoría",
+                "categoria",
                 "Autores",
                 "ISBN",
                 "Tipo",
                 "Activo",
             ]
             ws.append(headers)
+
+            # preparar mapa de categorias
+            categorias_map = {}
+            try:
+                cats = self._db.get_categorias()
+                for c in cats:
+                    cid = c.get("id_categoria") or c.get("id")
+                    if cid is not None:
+                        categorias_map[str(cid)] = c.get("nombre") or c.get("nombre_categoria") or ""
+            except Exception:
+                categorias_map = {}
 
             for libro in seleccion:
                 activo_value = libro.get("activo")
@@ -641,11 +805,13 @@ class HomePage(ft.Column):
                     or activo_value is True
                     or str(activo_value).strip().lower() in ("1", "true")
                 )
+                cat_val = libro.get("id_categoria") if libro.get("id_categoria") is not None else libro.get("categoria")
+                cat_name = categorias_map.get(str(cat_val), libro.get("categoria") or "")
                 ws.append([
                     (libro.get("codigo_barras") or ""),
                     (libro.get("titulo") or ""),
                     (libro.get("clasificacion_dui") or ""),
-                    (libro.get("categoria") or ""),
+                    (cat_name),
                     (libro.get("autores") or ""),
                     (libro.get("isbn") or ""),
                     (libro.get("tipo") or ""),
@@ -732,70 +898,310 @@ class HomePage(ft.Column):
             dlg.open = True
             self._page.update()
 
-        export_activos_menu = ft.PopupMenuButton(
-            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Excel Activos")], spacing=6),
-            items=[
-                ft.PopupMenuItem(content=ft.Text("Esta semana"), on_click=lambda e: export_semana_actual("ACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Semana anterior"), on_click=lambda e: export_semana_anterior("ACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Este mes"), on_click=lambda e: export_mes_actual("ACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Mes anterior"), on_click=lambda e: export_mes_anterior("ACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Elegir mes..."), on_click=lambda e: abrir_dialogo_mes("ACTIVOS")),
-            ],
+        # Menús de exportación eliminados; queda solo el botón principal `Descargar Excel`.
+
+        # Botón para descargar TODO el Excel (incluye registros no visibles en la tabla)
+        def exportar_excel_todos(e=None):
+            if not self._libros_cache:
+                self._libros_cache = self._db.get_libros()
+
+            libros = list(self._libros_cache or [])
+
+            # Recolectar todas las claves disponibles en los registros
+            all_keys = set()
+            for l in libros:
+                if isinstance(l, dict):
+                    all_keys.update(l.keys())
+
+            # Quitar campos de descripción asociados a categoría (p. ej. 'descripcion_categoria')
+            for _k in list(all_keys):
+                lk = _k.lower()
+                if "categoria" in lk and "descripcion" in lk:
+                    all_keys.discard(_k)
+
+            # Orden preferido (si existen)
+            preferred = [
+                "codigo_barras", "titulo", "clasificacion_dui", "categoria",
+                "autores", "isbn", "tipo", "activo",
+            ]
+
+            # Excluir el identificador interno si existe
+            if "id_libro" in all_keys:
+                all_keys.discard("id_libro")
+
+            keys = [k for k in preferred if k in all_keys]
+            # Añadir el resto de claves en orden alfabético para estabilidad
+            rest = sorted([k for k in all_keys if k not in keys])
+            keys.extend(rest)
+
+            # Construir encabezados legibles
+            def human(k: str) -> str:
+                return k.replace("_", " ").title()
+
+            headers = [human(k) for k in keys]
+            # Asegurar que la columna de categoría use exactamente 'categoria'
+            for idx, k in enumerate(keys):
+                if str(k).lower() in ("categoria", "id_categoria", "idcategoria"):
+                    headers[idx] = "categoria"
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Todos"
+            ws.append(headers)
+
+            import json
+
+            # Preparar mapeo id_categoria -> nombre (si aplica)
+            categorias_map = {}
+            try:
+                cats = self._db.get_categorias()
+                for c in cats:
+                    # pueden venir como id_categoria o id
+                    cid = c.get("id_categoria") or c.get("id")
+                    if cid is not None:
+                        categorias_map[str(cid)] = c.get("nombre") or c.get("nombre_categoria") or c.get("nombre_categoria", "")
+            except Exception:
+                categorias_map = {}
+
+            def serialize(v, key=None):
+                if v is None:
+                    return ""
+                # Mapear categoría por id si es necesario
+                if key and key.lower() in ("id_categoria", "idcategoria", "categoria"):
+                    try:
+                        # si viene un entero o texto numérico
+                        sk = str(v)
+                        if sk in categorias_map:
+                            return categorias_map[sk]
+                    except Exception:
+                        pass
+
+                if isinstance(v, (list, tuple)):
+                    return ", ".join([str(x) for x in v])
+                if isinstance(v, dict):
+                    try:
+                        return json.dumps(v, ensure_ascii=False)
+                    except Exception:
+                        return str(v)
+                if isinstance(v, bytes):
+                    return "<BINARY>"
+                if isinstance(v, datetime):
+                    return v.isoformat()
+                return str(v)
+
+            for libro in libros:
+                row = [serialize(libro.get(k), k) if isinstance(libro, dict) else "" for k in keys]
+                ws.append(row)
+
+            nombre = f"libros_todos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            out_path = os.path.join(tempfile.gettempdir(), nombre)
+            try:
+                wb.save(out_path)
+                snack(f"Excel generado: {nombre}")
+                open_file_default_app(out_path)
+            except Exception as ex:
+                snack(f"No se pudo generar Excel: {ex}")
+
+        btn_descargar_excel = ft.ElevatedButton(
+            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Descargar Excel")], spacing=8),
+            on_click=exportar_excel_todos,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+            ),
         )
 
-        export_inactivos_menu = ft.PopupMenuButton(
-            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Excel Inactivos")], spacing=6),
-            items=[
-                ft.PopupMenuItem(content=ft.Text("Esta semana"), on_click=lambda e: export_semana_actual("INACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Semana anterior"), on_click=lambda e: export_semana_anterior("INACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Este mes"), on_click=lambda e: export_mes_actual("INACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Mes anterior"), on_click=lambda e: export_mes_anterior("INACTIVOS")),
-                ft.PopupMenuItem(content=ft.Text("Elegir mes..."), on_click=lambda e: abrir_dialogo_mes("INACTIVOS")),
-            ],
+        btn_refrescar = ft.IconButton(
+            icon=ft.Icons.REFRESH_ROUNDED,
+            icon_color=ft.Colors.WHITE,
+            bgcolor="#1976d2",
+            tooltip="Refrescar datos",
+            on_click=lambda e: self._mostrar_libros() if hasattr(self, '_mostrar_libros') else None,
+            icon_size=24,
+            height=48,
+            width=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+            ),
         )
 
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
             content=ft.Row(
                 [
-                    ft.Text(
-                        "Libros Registrados",
-                        size=22,
-                        weight=ft.FontWeight.BOLD,
-                        color="#38638f",
-                    ),
-                    button_crear_libro,
+                    ft.Row([
+                        ft.Icon(ft.Icons.ASSIGNMENT_ROUNDED, color="#1565c0", size=32),
+                        ft.Text("Libros Registrados", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
+                    ], spacing=12),
+                    ft.Row([
+                        btn_refrescar,
+                        button_crear_libro,
+                    ], spacing=12),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
         )
 
-        container = ft.Container(
-            content=ft.Column(
+        # --- Métricas (estilo copiado de reservas)
+        self.total_label = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.activos_label = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.digitales_label = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.fisicos_label = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+
+        def crear_stat_card(titulo, valor_widget, icon, color, bgcolor):
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(icon, color=ft.Colors.WHITE, size=28),
+                            bgcolor=color,
+                            width=56,
+                            height=56,
+                            border_radius=12,
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                        ft.Column([
+                            valor_widget,
+                            ft.Text(titulo, size=13, color="#757575", weight=ft.FontWeight.W_500),
+                        ], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+                    ], alignment=ft.MainAxisAlignment.START, spacing=15),
+                ], spacing=0),
+                bgcolor=bgcolor,
+                border=ft.border.all(1, "#e0e0e0"),
+                border_radius=12,
+                padding=20,
+                width=250,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=10,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 2),
+                ),
+            )
+
+        stats_row = ft.Row([
+            crear_stat_card("Total de libros", self.total_label, ft.Icons.LIBRARY_BOOKS_ROUNDED, "#5e35b1", ft.Colors.WHITE),
+            crear_stat_card("Activos", self.activos_label, ft.Icons.BOOK_ROUNDED, "#1976d2", ft.Colors.WHITE),
+            crear_stat_card("Digitales", self.digitales_label, ft.Icons.PICTURE_AS_PDF_ROUNDED, "#00838f", ft.Colors.WHITE),
+            crear_stat_card("Físicos", self.fisicos_label, ft.Icons.MENU_BOOK_ROUNDED, "#6a1b9a", ft.Colors.WHITE),
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+
+        def actualizar_stats():
+            try:
+                total = len(self._libros_cache) if hasattr(self, '_libros_cache') else 0
+                activos = 0
+                digitales = 0
+                fisicos = 0
+                for l in (self._libros_cache or []):
+                    av = l.get('activo')
+                    is_activo = (av == 1 or av is True or str(av).strip().lower() in ('1', 'true'))
+                    if is_activo:
+                        activos += 1
+                    tipo = (l.get('tipo') or '').strip().upper()
+                    if tipo == 'DIGITAL':
+                        digitales += 1
+                    elif tipo == 'FISICO':
+                        fisicos += 1
+                self.total_label.value = str(total)
+                self.activos_label.value = str(activos)
+                self.digitales_label.value = str(digitales)
+                self.fisicos_label.value = str(fisicos)
+                if hasattr(self, '_page'):
+                    self._page.update()
+            except Exception:
+                pass
+
+        # Contenedor principal con header, métricas, filtros y tabla
+        filtros_bar = ft.Container(
+            content=ft.Row(
                 [
-                    header,
-                    ft.Row(
-                        [
-                            search_input,
-                            ft.Row([btn_todos, btn_activos, btn_inactivos], spacing=8),
-                            ft.Row([export_activos_menu, export_inactivos_menu], spacing=8),
-                        ],
-                        alignment=ft.MainAxisAlignment.END,
-                        spacing=12,
-                    ),
-                    ft.Row([libros_table], alignment=ft.MainAxisAlignment.CENTER),
+                    search_input,
+                    estado_dd,
+                    tipo_dd,
+                    ft.Row([btn_descargar_excel], spacing=8),
                 ],
-                spacing=20,
+                alignment=ft.MainAxisAlignment.START,
+                spacing=15,
             ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=15),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+        )
+
+        tabla_container = ft.Container(
+            content=ft.Column([
+                ft.Container(
+                    content=libros_table,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        [btn_prev, pagination_label, btn_next],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=6,
+                    ),
+                    padding=ft.padding.only(top=8),
+                ),
+            ], scroll=ft.ScrollMode.AUTO),
             padding=20,
             bgcolor=ft.Colors.WHITE,
-            border_radius=8,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+            margin=ft.margin.symmetric(horizontal=30),
             expand=True,
         )
 
-        self.controls = [ft.Row([container], expand=True)]
+        # Layout principal (match reservas)
+        self.controls = [
+            ft.Container(
+                content=ft.Column(
+                    [
+                        header,
+                        ft.Container(
+                            content=stats_row,
+                            padding=ft.padding.symmetric(horizontal=30),
+                        ),
+                        ft.Container(
+                            content=filtros_bar,
+                            padding=ft.padding.symmetric(horizontal=30),
+                        ),
+                        ft.Container(
+                            content=tabla_container,
+                            padding=0,
+                            alignment=ft.Alignment.CENTER,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=20,
+                    expand=True,
+                ),
+                bgcolor="#f5f7fa",
+                padding=ft.padding.symmetric(vertical=20),
+                expand=True,
+            )
+        ]
 
         mostrar_libros()
 

@@ -1,5 +1,8 @@
 import flet as ft
 from model.database import Database
+from datetime import datetime
+import os
+import tempfile
 
 
 class DetalleLibroPage(ft.Column):
@@ -30,6 +33,41 @@ class DetalleLibroPage(ft.Column):
                     os.system(f'xdg-open "{path}"')
             except Exception as ex:
                 snack(f"No se pudo abrir el archivo: {ex}")
+
+        def safe_filename(name: str) -> str:
+            import re
+            name = (name or "").strip()
+            name = re.sub(r"[^\w\-. ]+", "", name, flags=re.UNICODE)
+            if not name.lower().endswith(".pdf"):
+                name += ".pdf"
+            return name[:150] if name else "documento.pdf"
+
+        def format_fecha(valor) -> str:
+            if not valor:
+                return "N/A"
+            if isinstance(valor, datetime):
+                return valor.strftime("%d-%m-%Y")
+            if hasattr(valor, "strftime"):
+                try:
+                    return valor.strftime("%d-%m-%Y")
+                except Exception:
+                    pass
+            s = str(valor).strip()
+            formatos = [
+                "%Y-%m-%d",
+                "%Y-%m-%d %H:%M:%S",
+                "%d/%m/%Y",
+                "%d/%m/%Y %H:%M:%S",
+            ]
+            for fmt in formatos:
+                try:
+                    return datetime.strptime(s, fmt).strftime("%d-%m-%Y")
+                except Exception:
+                    pass
+            try:
+                return datetime.fromisoformat(s).strftime("%d-%m-%Y")
+            except Exception:
+                return s
 
         # =========================
         # Obtener datos del libro
@@ -142,14 +180,7 @@ class DetalleLibroPage(ft.Column):
         if libro.get("tipo", "").upper() == "DIGITAL":
             if tiene_pdf:
                 pdf_info = self._db.get_libro_pdf(id_libro)
-                fecha_subida = pdf_info.get('fecha_subida', 'N/A')
-                if fecha_subida and fecha_subida != 'N/A':
-                    try:
-                        fecha_str = str(fecha_subida)
-                        fecha_date = fecha_str.split(" ")[0] if " " in fecha_str else fecha_str.split("T")[0] if "T" in fecha_str else fecha_str
-                        fecha_subida = fecha_date
-                    except:
-                        pass
+                fecha_subida = format_fecha(pdf_info.get('fecha_subida', 'N/A'))
                 pdf_section = ft.Container(
                     content=ft.Column(
                         [
@@ -186,31 +217,63 @@ class DetalleLibroPage(ft.Column):
                 border_radius=8,
             )
 
-        # Header (estilo Contactos)
+        def descargar_pdf(e=None):
+            if not (tiene_pdf and pdf_info):
+                snack("Este libro no tiene PDF.")
+                return
+            try:
+                contenido = pdf_info.get("contenido")
+                if contenido is None:
+                    snack("El PDF está vacío.")
+                    return
+                pdf_bytes = bytes(contenido)
+                nombre = safe_filename(pdf_info.get("nombre_archivo") or f"libro_{id_libro}.pdf")
+                out_path = os.path.join(tempfile.gettempdir(), f"libro_{id_libro}_{nombre}")
+                with open(out_path, "wb") as f:
+                    f.write(pdf_bytes)
+                open_file_default_app(out_path)
+            except Exception as ex:
+                snack(f"No se pudo descargar el PDF: {ex}")
+
+        # Header (estilo páginas principales)
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
             content=ft.Row(
                 [
-                    ft.Text("Detalles del Libro", size=22, weight=ft.FontWeight.BOLD, color="#38638f"),
+                    ft.Row([
+                        ft.Icon(ft.Icons.MENU_BOOK_ROUNDED, color="#1565c0", size=32),
+                        ft.Text("Detalles del Libro", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
+                    ], spacing=12),
                     ft.Row([
                         ft.TextButton("Volver", on_click=lambda e: navigate("/")),
-                        ft.ElevatedButton("Editar", icon=ft.Icons.EDIT, bgcolor=ft.Colors.ORANGE, color=ft.Colors.WHITE, on_click=lambda e: navigate(f"/editlib/{id_libro}")),
                     ], spacing=8),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
             ),
         )
 
         # Tarjeta principal con sombra (alineada al estilo de otras páginas)
         card = ft.Container(
-            width=980,
+            width=1100,
             padding=24,
             bgcolor=ft.Colors.WHITE,
             border_radius=12,
-            border=ft.border.all(1, "#d0d7de"),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=12, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
+            border=ft.border.all(1, "#e0e0e0"),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=10,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
             content=ft.Row(
                 [
                     # Columna izquierda: información principal (expandible)
@@ -293,10 +356,20 @@ class DetalleLibroPage(ft.Column):
                             ft.Divider(height=12, color="transparent"),
 
                             ft.ElevatedButton(
-                                "Descargar PDF",
-                                icon=ft.Icons.DOWNLOAD,
-                                on_click=lambda e: open_file_default_app(pdf_info.get("nombre_archivo")) if (tiene_pdf and pdf_info) else None,
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.DOWNLOAD, size=18),
+                                    ft.Text("Descargar PDF", size=13, weight=ft.FontWeight.W_500),
+                                ], spacing=8),
+                                on_click=descargar_pdf,
                                 disabled=not (tiene_pdf and pdf_info),
+                                bgcolor="#1976d2",
+                                color=ft.Colors.WHITE,
+                                height=40,
+                                width=170,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=10),
+                                    elevation=2,
+                                ),
                             ),
 
                         ], spacing=12),
@@ -309,13 +382,20 @@ class DetalleLibroPage(ft.Column):
 
         # Composición final
         wrapper = ft.Container(
-            padding=20,
-            content=ft.Column([
-                header,
-                ft.Divider(height=12, color="transparent"),
-                ft.Row([card], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Divider(height=18, color="transparent"),
-            ], spacing=8, expand=True)
+            bgcolor="#f5f7fa",
+            padding=ft.padding.symmetric(vertical=20),
+            content=ft.Column(
+                [
+                    header,
+                    ft.Container(
+                        content=ft.Row([card], alignment=ft.MainAxisAlignment.CENTER),
+                        padding=ft.padding.symmetric(horizontal=30),
+                    ),
+                ],
+                spacing=20,
+                expand=True,
+            ),
+            expand=True,
         )
 
         # Asignar controles

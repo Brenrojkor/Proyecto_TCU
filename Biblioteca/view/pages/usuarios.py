@@ -1,6 +1,14 @@
 import flet as ft
 from model.database import Database
 
+import os
+import sys
+import tempfile
+import json
+from datetime import datetime
+from openpyxl import Workbook
+import math
+
 class UsuariosPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
@@ -9,71 +17,365 @@ class UsuariosPage(ft.Column):
         self.db = Database()
         self.dialog = None
         self.usuario_editando = None
+        self._usuarios_cache = []
+        self._usuarios_filtrados = []
+        self._page_size = 5
+        self._pagina_actual = 1
 
-        # Botón crear usuario
+        # =========================
+        # Métricas
+        # =========================
+        self.total_usuarios = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.usuarios_grupo = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.usuarios_activos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+
+        # Botones de acción (estilo reservas)
         self.btn_crear = ft.ElevatedButton(
-            content=ft.Row([ft.Icon(ft.Icons.ADD), ft.Text("Crear usuario")], spacing=8),
+            content=ft.Row([
+                ft.Icon(ft.Icons.ADD_ROUNDED, size=20),
+                ft.Text("Crear usuario", size=14, weight=ft.FontWeight.W_500)
+            ], spacing=8),
             on_click=self.abrir_dialogo_crear,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=2,
+            ),
+        )
+        self.btn_refrescar = ft.IconButton(
+            icon=ft.Icons.REFRESH_ROUNDED,
+            icon_color=ft.Colors.WHITE,
+            bgcolor="#1976d2",
+            tooltip="Refrescar datos",
+            on_click=lambda e: self.mostrar_usuarios(),
+            icon_size=24,
+            height=48,
+            width=48,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+            ),
         )
 
         # Input de búsqueda
         self.search_input = ft.TextField(
             hint_text="Buscar usuario...",
-            prefix_icon=ft.Icons.SEARCH,
-            width=320,
+            prefix_icon=ft.Icons.SEARCH_ROUNDED,
+            width=500,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            border_color="#e0e0e0",
+            focused_border_color="#1976d2",
+            focused_border_width=2,
+            text_size=14,
+            content_padding=ft.padding.only(left=15, right=15, top=10, bottom=10),
+            on_change=lambda e: self.mostrar_usuarios(reset_pagina=True),
+        )
+
+        self.estado_dd = ft.Dropdown(
+            width=200,
             height=44,
             bgcolor="#f5f7fa",
             border_radius=8,
             border_color="#cfd8dc",
             focused_border_color="#1976d2",
+            value="TODOS",
+            label="Filtrar",
             text_size=14,
-            on_change=lambda e: self.mostrar_usuarios(),
+            options=[
+                ft.dropdown.Option("TODOS", "Todos"),
+                ft.dropdown.Option("ACTIVOS", "Activos"),
+                ft.dropdown.Option("INACTIVOS", "Inactivos"),
+            ],
         )
+        self.estado_dd.on_change = lambda e: self.mostrar_usuarios(reset_pagina=True)
 
         # Tabla de usuarios
         self.usuarios_table = ft.DataTable(
             bgcolor=ft.Colors.WHITE,
-            border=ft.border.all(1, "#d0d7de"),
-            border_radius=8,
-            width=1100,
-            heading_row_color="#e3f2fd",
-            heading_row_height=48,
-            data_row_min_height=52,
-            data_row_max_height=52,
-            column_spacing=20,
-            horizontal_margin=16,
+            border=ft.border.all(1, "#e0e0e0"),
+            border_radius=12,
+            width=1300,
+            heading_row_color="#f5f7fa",
+            heading_row_height=56,
+            data_row_min_height=60,
+            data_row_max_height=65,
+            column_spacing=30,
+            horizontal_margin=20,
+            divider_thickness=0.5,
             columns=[
-                ft.DataColumn(ft.Text("Nombre completo", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Identificación", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Provincia", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Teléfono", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Año", weight=ft.FontWeight.BOLD, color="#0d47a1")),
-                ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#0d47a1")),
+                ft.DataColumn(ft.Text("Nombre completo", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Identificación", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Provincia", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Teléfono", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Año", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
+                ft.DataColumn(ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)),
             ],
             rows=[],
         )
 
-        # Layout principal
-        header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
-            content=ft.Row([ft.Text("Usuarios Registrados", size=22, weight=ft.FontWeight.BOLD, color="#38638f"), self.btn_crear],
-                           alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        # =========================
+        # Cards de estadísticas (estilo reservas)
+        # =========================
+        def crear_stat_card(titulo, valor_widget, icon, color, bgcolor):
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(icon, color=ft.Colors.WHITE, size=28),
+                            bgcolor=color,
+                            width=56,
+                            height=56,
+                            border_radius=12,
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                        ft.Column([
+                            valor_widget,
+                            ft.Text(titulo, size=13, color="#757575", weight=ft.FontWeight.W_500),
+                        ], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+                    ], alignment=ft.MainAxisAlignment.START, spacing=15),
+                ], spacing=0),
+                bgcolor=bgcolor,
+                border=ft.border.all(1, "#e0e0e0"),
+                border_radius=12,
+                padding=20,
+                width=250,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=10,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 2),
+                ),
+            )
+
+        stats_row = ft.Row([
+            crear_stat_card("Total Usuarios", self.total_usuarios, ft.Icons.PEOPLE_ROUNDED, "#5e35b1", ft.Colors.WHITE),
+            crear_stat_card("Usuarios Activos", self.usuarios_activos, ft.Icons.CHECK_CIRCLE_ROUNDED, "#2e7d32", ft.Colors.WHITE),
+            crear_stat_card("Usuarios en Grupo", self.usuarios_grupo, ft.Icons.GROUPS_ROUNDED, "#1976d2", ft.Colors.WHITE),
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+
+        # =========================
+        # Paginación
+        # =========================
+        self._pagination_label = ft.Text("Página 1 de 1", size=12, color="#546e7a")
+
+        def change_page(delta: int):
+            total = max(1, math.ceil(len(self._usuarios_filtrados) / self._page_size))
+            self._pagina_actual = min(max(1, self._pagina_actual + delta), total)
+            self.mostrar_usuarios()
+
+        self._btn_prev = ft.IconButton(
+            icon=ft.Icons.CHEVRON_LEFT,
+            icon_color="#546e7a",
+            tooltip="Anterior",
+            on_click=lambda e: change_page(-1),
+        )
+        self._btn_next = ft.IconButton(
+            icon=ft.Icons.CHEVRON_RIGHT,
+            icon_color="#546e7a",
+            tooltip="Siguiente",
+            on_click=lambda e: change_page(1),
         )
 
-        container = ft.Container(
-            content=ft.Column([header,
-                               ft.Row([self.search_input], alignment=ft.MainAxisAlignment.END),
-                               ft.Row([self.usuarios_table], alignment=ft.MainAxisAlignment.CENTER)],
-                              spacing=20),
+        # =========================
+        # Header estilo reservas
+        # =========================
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Row([
+                        ft.Icon(ft.Icons.PEOPLE_ROUNDED, color="#1565c0", size=32),
+                        ft.Text("Gestión de Usuarios", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
+                    ], spacing=12),
+                    ft.Row([self.btn_refrescar, self.btn_crear], spacing=12),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+        )
+
+        # Barra de filtros
+        # Función para abrir archivo en la app por defecto
+        def open_file_default_app(path: str):
+            try:
+                if sys.platform.startswith("win"):
+                    os.startfile(path)
+                elif sys.platform == "darwin":
+                    os.system(f'open "{path}"')
+                else:
+                    os.system(f'xdg-open "{path}"')
+            except Exception as ex:
+                self.snack(f"No se pudo abrir el archivo: {ex}")
+
+        # Exportar usuarios a Excel
+        def exportar_excel_usuarios(e=None):
+            if not self._usuarios_cache:
+                self._usuarios_cache = self.db.get_usuarios()
+
+            usuarios = list(self._usuarios_cache or [])
+            # Recolectar todas las claves
+            all_keys = set()
+            for u in usuarios:
+                if isinstance(u, dict):
+                    all_keys.update(u.keys())
+
+            # Excluir identificador interno
+            if "id_usuario" in all_keys:
+                all_keys.discard("id_usuario")
+
+            preferred = [
+                "nombre_completo",
+                "identificacion",
+                "provincia",
+                "canton",
+                "distrito",
+                "telefono",
+                "anio",
+                "activo",
+            ]
+            keys = [k for k in preferred if k in all_keys]
+            rest = sorted([k for k in all_keys if k not in keys and k != "comentario"])
+            keys.extend(rest)
+            if "comentario" in all_keys:
+                keys.append("comentario")
+
+            def human(k: str) -> str:
+                return k.replace("_", " ").title()
+
+            headers = [human(k) for k in keys]
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Usuarios"
+            ws.append(headers)
+
+            def serialize(v):
+                if v is None:
+                    return ""
+                # Normalizar booleanos y 0/1 a Sí/No
+                if isinstance(v, bool):
+                    return "Sí" if v else "No"
+                if isinstance(v, (int, float)) and v in (0, 1):
+                    return "Sí" if v == 1 else "No"
+                if isinstance(v, str):
+                    vs = v.strip().lower()
+                    if vs in ("true", "false", "1", "0"):
+                        return "Sí" if vs in ("true", "1") else "No"
+                if isinstance(v, (list, tuple)):
+                    return ", ".join([str(x) for x in v])
+                if isinstance(v, dict):
+                    try:
+                        return json.dumps(v, ensure_ascii=False)
+                    except Exception:
+                        return str(v)
+                if isinstance(v, bytes):
+                    return "<BINARY>"
+                if isinstance(v, datetime):
+                    return v.isoformat()
+                return str(v)
+
+            for u in usuarios:
+                row = [serialize(u.get(k)) if isinstance(u, dict) else "" for k in keys]
+                ws.append(row)
+
+            nombre = f"usuarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            out_path = os.path.join(tempfile.gettempdir(), nombre)
+            try:
+                wb.save(out_path)
+                self.snack(f"Excel generado: {nombre}")
+                open_file_default_app(out_path)
+            except Exception as ex:
+                self.snack(f"No se pudo generar Excel: {ex}")
+
+        btn_descargar_excel = ft.ElevatedButton(
+            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Descargar Excel")], spacing=8),
+            on_click=exportar_excel_usuarios,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=44,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+            ),
+        )
+
+        filtros_bar = ft.Container(
+            content=ft.Row(
+                [self.search_input, self.estado_dd, btn_descargar_excel],
+                alignment=ft.MainAxisAlignment.START,
+                spacing=15,
+            ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=15),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+        )
+
+        # Contenedor de tabla
+        tabla_container = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=self.usuarios_table,
+                        alignment=ft.Alignment.CENTER,
+                    ),
+                    ft.Container(
+                        content=ft.Row(
+                            [self._btn_prev, self._pagination_label, self._btn_next],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=6,
+                        ),
+                        padding=ft.padding.only(top=8),
+                    ),
+                ],
+                scroll=ft.ScrollMode.AUTO,
+            ),
             padding=20,
             bgcolor=ft.Colors.WHITE,
-            border_radius=8,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+            margin=ft.margin.symmetric(horizontal=30),
             expand=True,
         )
 
-        self.controls = [ft.Row([container], alignment=ft.MainAxisAlignment.CENTER, expand=True)]
+        # Layout principal
+        self.controls = [
+            ft.Container(
+                content=ft.Column(
+                    [
+                        header,
+                        ft.Container(content=stats_row, padding=ft.padding.symmetric(horizontal=30)),
+                        ft.Container(content=filtros_bar, padding=ft.padding.symmetric(horizontal=30)),
+                        ft.Container(content=tabla_container, padding=0, expand=True),
+                    ],
+                    spacing=20,
+                    expand=True,
+                ),
+                bgcolor="#f5f7fa",
+                padding=ft.padding.symmetric(vertical=20),
+                expand=True,
+            )
+        ]
         self.mostrar_usuarios()
 
     def snack(self, msg: str):
@@ -377,7 +679,7 @@ class UsuariosPage(ft.Column):
             self._page.update()
 
     # Mostrar usuarios
-    def mostrar_usuarios(self):
+    def mostrar_usuarios(self, reset_pagina: bool = False):
         # Función para crear celdas con links (identificación y teléfono)
         def link_cell(text_value: str, url: str):
             if not text_value:
@@ -394,8 +696,19 @@ class UsuariosPage(ft.Column):
             )
 
         self.usuarios_table.rows.clear()
+        self._usuarios_cache = self.db.get_usuarios()
         filtro = (self.search_input.value or "").lower()
-        for usuario in self.db.get_usuarios():
+        estado = (self.estado_dd.value or "TODOS").upper()
+
+        total = len(self._usuarios_cache)
+        en_grupo = len([u for u in self._usuarios_cache if str(u.get("grupo")).lower() not in ("", "0", "false", "none") and bool(u.get("grupo"))])
+        activos = len([u for u in self._usuarios_cache if bool(u.get("activo")) and str(u.get("activo")).lower() not in ("0", "false")])
+        self.total_usuarios.value = str(total)
+        self.usuarios_grupo.value = str(en_grupo)
+        self.usuarios_activos.value = str(activos)
+
+        filtrados = []
+        for usuario in self._usuarios_cache:
             texto = f'{usuario["nombre_completo"]} {usuario.get("identificacion","")}'.lower()
             if filtro and filtro not in texto:
                 continue
@@ -403,13 +716,37 @@ class UsuariosPage(ft.Column):
             # Obtener estado actual del usuario
             activo_value = usuario.get("activo")
             is_activo = bool(activo_value) and str(activo_value).lower() not in ("0", "false")
-            
+
+            if estado == "ACTIVOS" and not is_activo:
+                continue
+            if estado == "INACTIVOS" and is_activo:
+                continue
+
+            filtrados.append(usuario)
+
+        self._usuarios_filtrados = filtrados
+
+        total_pages = max(1, math.ceil(len(filtrados) / self._page_size))
+        if reset_pagina:
+            self._pagina_actual = 1
+        if self._pagina_actual > total_pages:
+            self._pagina_actual = total_pages
+
+        start = (self._pagina_actual - 1) * self._page_size
+        end = start + self._page_size
+        pagina_items = filtrados[start:end]
+
+        for usuario in pagina_items:
             # Preparar identificación y teléfono para links
             identificacion_val = (usuario.get("identificacion", "") or "").strip()
             telefono_val = (usuario.get("telefono", "") or "").strip()
             whatsapp_num = "".join([ch for ch in telefono_val if ch.isdigit()])
             whatsapp_url = f"https://wa.me/{whatsapp_num}" if whatsapp_num else ""
-            
+
+            # Obtener estado actual del usuario
+            activo_value = usuario.get("activo")
+            is_activo = bool(activo_value) and str(activo_value).lower() not in ("0", "false")
+
             self.usuarios_table.rows.append(
                 ft.DataRow(cells=[
                     ft.DataCell(ft.Text(usuario["nombre_completo"])),
@@ -434,4 +771,11 @@ class UsuariosPage(ft.Column):
                     ], spacing=10, alignment=ft.MainAxisAlignment.CENTER))
                 ])
             )
+
+        try:
+            self._pagination_label.value = f"Página {self._pagina_actual} de {total_pages}"
+            self._btn_prev.disabled = self._pagina_actual <= 1
+            self._btn_next.disabled = self._pagina_actual >= total_pages
+        except Exception:
+            pass
         self._page.update()

@@ -1,6 +1,7 @@
 import flet as ft
 from model.database import Database
 from datetime import datetime, timedelta
+import math
 
 
 class ReservasPage(ft.Column):
@@ -24,16 +25,16 @@ class ReservasPage(ft.Column):
         # =========================
         # Estadísticas Cards
         # =========================
-        self.total_prestamos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
-        self.prestamos_activos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
-        self.prestamos_vencidos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
-        self.libros_devueltos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+        self.total_prestamos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.prestamos_activos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.prestamos_vencidos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
+        self.libros_devueltos = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="#263238")
 
         # =========================
         # UI - Inputs Mejorados
         # =========================
         self.search_input = ft.TextField(
-            hint_text="🔍 Buscar por libro, cédula o usuario...",
+            hint_text="Buscar por libro, cédula o usuario...",
             prefix_icon=ft.Icons.SEARCH_ROUNDED,
             width=500,
             height=50,
@@ -54,14 +55,14 @@ class ReservasPage(ft.Column):
             border_color="#e0e0e0",
             focused_border_color="#1976d2",
             value="TODOS",
-            label="Estado",
+            label="Filtrar",
             text_size=14,
             options=[
-                ft.dropdown.Option("TODOS", "📚 Todos"),
-                ft.dropdown.Option("PRESTADO", "🔵 Prestado"),
-                ft.dropdown.Option("DEVUELTO", "✅ Devuelto"),
-                ft.dropdown.Option("NO DEVUELTO", "⚠️ Vencido"),
-                ft.dropdown.Option("A SALA", "🏫 A sala"),
+                ft.dropdown.Option("TODOS", "Todos"),
+                ft.dropdown.Option("PRESTADO", "Prestado"),
+                ft.dropdown.Option("DEVUELTO", "Devuelto"),
+                ft.dropdown.Option("NO DEVUELTO", "Vencido"),
+                ft.dropdown.Option("A SALA", "A sala"),
             ],
         )
 
@@ -72,6 +73,7 @@ class ReservasPage(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=ft.border.all(1, "#e0e0e0"),
             border_radius=12,
+            width=1400,
             heading_row_color="#f5f7fa",
             heading_row_height=56,
             data_row_min_height=60,
@@ -82,30 +84,33 @@ class ReservasPage(ft.Column):
             columns=[
                 ft.DataColumn(
                     label=ft.Container(
-                        content=ft.Text("📖 Libro", weight=ft.FontWeight.BOLD, color="#1565c0", size=13),
+                        content=ft.Text("Libro", weight=ft.FontWeight.BOLD, color="#1565c0", size=13),
                         padding=ft.padding.only(left=5)
                     )
                 ),
                 ft.DataColumn(
-                    label=ft.Text("👤 Usuario", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
+                    label=ft.Text("Usuario", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
                 ),
                 ft.DataColumn(
-                    label=ft.Text("📅 Préstamo", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
+                    label=ft.Text("Préstamo", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
                 ),
                 ft.DataColumn(
-                    label=ft.Text("📅 Devolución", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
+                    label=ft.Text("Devolución", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
                 ),
                 ft.DataColumn(
-                    label=ft.Text("📊 Estado", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
+                    label=ft.Text("Estado", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
                 ),
                 ft.DataColumn(
-                    label=ft.Text("⚙️ Acciones", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
+                    label=ft.Text("Acciones", weight=ft.FontWeight.BOLD, color="#1565c0", size=13)
                 ),
             ],
             rows=[],
         )
 
         self._reservas_cache = []
+        self._page_size = 5
+        self._pagina_actual = 1
+        self._reservas_filtradas = []
 
         # =========================
         # Build row Mejorado
@@ -113,22 +118,49 @@ class ReservasPage(ft.Column):
         def build_row(r: dict) -> ft.DataRow:
             estado = (r.get("estado") or "PRESTADO").strip().upper()
 
+            def format_fecha(valor):
+                if not valor:
+                    return ""
+                if isinstance(valor, datetime):
+                    return valor.strftime("%d-%m-%Y")
+                if hasattr(valor, "strftime"):
+                    try:
+                        return valor.strftime("%d-%m-%Y")
+                    except Exception:
+                        pass
+                s = str(valor).strip()
+                formatos = [
+                    "%Y-%m-%d",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%d/%m/%Y",
+                    "%d/%m/%Y %H:%M:%S",
+                ]
+                for fmt in formatos:
+                    try:
+                        return datetime.strptime(s, fmt).strftime("%d-%m-%Y")
+                    except Exception:
+                        pass
+                try:
+                    return datetime.fromisoformat(s).strftime("%d-%m-%Y")
+                except Exception:
+                    return s
+
             # Colores mejorados
             if estado == "DEVUELTO":
                 estado_color = "#2e7d32"
-                estado_icon = "✓"
+                estado_icon = ""
                 texto_estado = "Devuelto"
             elif estado == "NO DEVUELTO":
                 estado_color = "#d32f2f"
-                estado_icon = "⚠"
+                estado_icon = ""
                 texto_estado = "Vencido"
             elif estado == "A SALA":
                 estado_color = "#6a1b9a"
-                estado_icon = "🏫"
+                estado_icon = ""
                 texto_estado = "A sala"
             else:
                 estado_color = "#1976d2"
-                estado_icon = "📚"
+                estado_icon = ""
                 texto_estado = "Activo"
 
             # Calcular días restantes
@@ -173,16 +205,15 @@ class ReservasPage(ft.Column):
                         )
                     ),
                     ft.DataCell(
-                        ft.Text(r.get("fecha_prestamo", ""), size=12, color="#546e7a")
+                        ft.Text(format_fecha(r.get("fecha_prestamo", "")), size=12, color="#546e7a")
                     ),
                     ft.DataCell(
-                        ft.Text(r.get("fecha_devolucion", "—"), size=12, color="#546e7a")
+                        ft.Text(format_fecha(r.get("fecha_devolucion", "—")) or "—", size=12, color="#546e7a")
                     ),
                     ft.DataCell(
                         ft.Container(
                             content=ft.Row(
                                 [
-                                    ft.Text(estado_icon, size=14),
                                     ft.Text(texto_estado + dias_info, color=ft.Colors.WHITE, size=12, weight=ft.FontWeight.BOLD),
                                 ],
                                 spacing=5,
@@ -323,7 +354,7 @@ class ReservasPage(ft.Column):
 
                 # Actualizar estadísticas
                 actualizar_estadisticas()
-                aplicar_filtros()
+                aplicar_filtros(reset_pagina=True)
 
             except Exception as ex:
                 import traceback
@@ -340,11 +371,35 @@ class ReservasPage(ft.Column):
             self.prestamos_activos.value = str(activos)
             self.prestamos_vencidos.value = str(vencidos)
             self.libros_devueltos.value = str(devueltos)
+            self._page.update()
+
+        # =========================
+        # Paginación
+        # =========================
+        pagination_label = ft.Text("Página 1 de 1", size=12, color="#546e7a")
+
+        def change_page(delta: int):
+            total = max(1, math.ceil(len(self._reservas_filtradas) / self._page_size))
+            self._pagina_actual = min(max(1, self._pagina_actual + delta), total)
+            aplicar_filtros()
+
+        btn_prev = ft.IconButton(
+            icon=ft.Icons.CHEVRON_LEFT,
+            icon_color="#546e7a",
+            tooltip="Anterior",
+            on_click=lambda e: change_page(-1),
+        )
+        btn_next = ft.IconButton(
+            icon=ft.Icons.CHEVRON_RIGHT,
+            icon_color="#546e7a",
+            tooltip="Siguiente",
+            on_click=lambda e: change_page(1),
+        )
 
         # =========================
         # Filtros
         # =========================
-        def aplicar_filtros():
+        def aplicar_filtros(reset_pagina: bool = False):
             estado = self.estado_dd.value
             texto = (self.search_input.value or "").lower()
 
@@ -360,11 +415,27 @@ class ReservasPage(ft.Column):
 
                 filtradas.append(r)
 
-            self.reservas_table.rows = [build_row(r) for r in filtradas]
+            self._reservas_filtradas = filtradas
+
+            total_pages = max(1, math.ceil(len(filtradas) / self._page_size))
+            if reset_pagina:
+                self._pagina_actual = 1
+            if self._pagina_actual > total_pages:
+                self._pagina_actual = total_pages
+
+            start = (self._pagina_actual - 1) * self._page_size
+            end = start + self._page_size
+            pagina_items = filtradas[start:end]
+
+            self.reservas_table.rows = [build_row(r) for r in pagina_items]
+
+            pagination_label.value = f"Página {self._pagina_actual} de {total_pages}"
+            btn_prev.disabled = self._pagina_actual <= 1
+            btn_next.disabled = self._pagina_actual >= total_pages
             self._page.update()
 
-        self.search_input.on_change = lambda e: aplicar_filtros()
-        self.estado_dd.on_change = lambda e: aplicar_filtros()
+        self.search_input.on_change = lambda e: aplicar_filtros(reset_pagina=True)
+        self.estado_dd.on_change = lambda e: aplicar_filtros(reset_pagina=True)
 
         # =========================
         # Registrar devolución Mejorado
@@ -512,12 +583,12 @@ class ReservasPage(ft.Column):
                                     ft.Text("Usuario:", weight=ft.FontWeight.BOLD, size=14),
                                     ft.Text(reserva.get("cedula_usuario", ""), size=14, color="#546e7a"),
                                 ]),
-                            ], spacing=10),
+                            ], spacing=8),
                             bgcolor="#e3f2fd",
-                            padding=15,
+                            padding=12,
                             border_radius=8,
                         ),
-                        ft.Divider(height=10, color="transparent"),
+                        ft.Divider(height=8, color="transparent"),
                         nueva_fecha_field,
                         ft.Container(
                             content=ft.Row([
@@ -525,16 +596,17 @@ class ReservasPage(ft.Column):
                                 ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
                             ]),
                             bgcolor="#e3f2fd",
-                            padding=10,
+                            padding=8,
                             border_radius=6,
                         ),
-                    ], tight=True, spacing=12),
-                    width=500,
+                    ], tight=True, spacing=10),
+                    width=460,
+                    height=260,
                 ),
                 actions=[
                     ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update()),
                     ft.ElevatedButton(
-                        "Confirmar Renovación",
+                        "Renovar",
                         icon=ft.Icons.CHECK_ROUNDED,
                         on_click=confirmar_renovacion,
                         bgcolor="#0288d1",
@@ -779,21 +851,22 @@ class ReservasPage(ft.Column):
                                     ft.Text(f"Total de préstamos: {len(historial)}", size=14, weight=ft.FontWeight.W_500, color="#1976d2"),
                                 ]),
                                 bgcolor="#e3f2fd",
-                                padding=15,
+                                padding=12,
                                 border_radius=8,
                             ),
                             ft.Container(
                                 content=ft.Column([historial_table], scroll=ft.ScrollMode.AUTO),
-                                height=350,
+                                height=260,
                             ),
-                        ], spacing=15),
-                        width=650,
+                        ], spacing=12),
+                        width=600,
+                        height=380,
                     ),
                     actions=[
                         ft.ElevatedButton(
                             content=ft.Row([
                                 ft.Icon(ft.Icons.DOWNLOAD_ROUNDED, size=18),
-                                ft.Text("Descargar Excel")
+                                ft.Text("Descargar")
                             ], spacing=8),
                             on_click=exportar_excel,
                             bgcolor="#2e7d32",
@@ -867,68 +940,270 @@ class ReservasPage(ft.Column):
                 print(f"Error al cargar usuarios: {ex}")
                 usuarios_activos = []
 
-            libro_dd = ft.Dropdown(
-                label="Seleccione un libro *",
-                hint_text="Busque por título...",
-                width=450,
-                bgcolor="#f5f7fa",
-                border_radius=8,
-                options=[
+            libros_seleccionados = []
+            usuarios_seleccionados = []
+
+            def actualizar_dropdown_libros(lista):
+                libro_dd.options = [
                     ft.dropdown.Option(
                         key=str(l["id_libro"]),
                         text=f"{l['titulo'][:50]}{'...' if len(l['titulo']) > 50 else ''}"
                     )
-                    for l in libros_activos
+                    for l in lista
                 ]
-            )
 
-            identificacion_dd = ft.Dropdown(
-                label="Seleccione un Usuario *",
-                hint_text="Busque por nombre o identificación...",
-                width=450,
-                bgcolor="#f5f7fa",
-                border_radius=8,
-                options=[
+            def actualizar_dropdown_usuarios(lista):
+                identificacion_dd.options = [
                     ft.dropdown.Option(
                         key=str(u.get("identificacion", "")),
                         text=f"{u.get('nombre_completo', 'Sin nombre')[:30]} - {u.get('identificacion', '')}"
                     )
-                    for u in usuarios_activos
-                ] if usuarios_activos else [ft.dropdown.Option("", "No hay usuarios disponibles")],
+                    for u in lista
+                ] if lista else [ft.dropdown.Option("", "No hay usuarios disponibles")]
+
+            def filtrar_libros(e):
+                busqueda = (buscar_libro_input.value or "").lower().strip()
+                if not busqueda:
+                    actualizar_dropdown_libros(libros_activos)
+                else:
+                    actualizar_dropdown_libros([l for l in libros_activos if busqueda in l.get("titulo", "").lower()])
+                self._page.update()
+
+            def filtrar_usuarios(e):
+                busqueda = (buscar_usuario_input.value or "").lower().strip()
+                if not busqueda:
+                    actualizar_dropdown_usuarios(usuarios_activos)
+                else:
+                    actualizar_dropdown_usuarios([
+                        u for u in usuarios_activos
+                        if busqueda in (u.get("nombre_completo", "").lower())
+                        or busqueda in str(u.get("identificacion", "")).lower()
+                    ])
+                self._page.update()
+
+            def actualizar_lista_libros():
+                libros_seleccionados_column.controls.clear()
+                for l in libros_seleccionados:
+                    libros_seleccionados_column.controls.append(
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Text(l["texto"], size=13, color=ft.Colors.WHITE),
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE,
+                                    icon_size=16,
+                                    icon_color=ft.Colors.WHITE,
+                                    on_click=lambda e, lid=l["id"]: remover_libro(lid),
+                                ),
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            padding=8,
+                            bgcolor="#1976d2",
+                            border_radius=6,
+                        )
+                    )
+                self._page.update()
+
+            def actualizar_lista_usuarios():
+                usuarios_seleccionados_column.controls.clear()
+                for u in usuarios_seleccionados:
+                    usuarios_seleccionados_column.controls.append(
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Text(u["texto"], size=13, color=ft.Colors.WHITE),
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE,
+                                    icon_size=16,
+                                    icon_color=ft.Colors.WHITE,
+                                    on_click=lambda e, uid=u["id"]: remover_usuario(uid),
+                                ),
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            padding=8,
+                            bgcolor="#1976d2",
+                            border_radius=6,
+                        )
+                    )
+                self._page.update()
+
+            def agregar_libro(e):
+                if not libro_dd.value:
+                    return
+                libro = next((l for l in libros_activos if str(l.get("id_libro")) == libro_dd.value), None)
+                if not libro:
+                    return
+                libros_seleccionados.clear()
+                libros_seleccionados.append({
+                    "id": str(libro.get("id_libro")),
+                    "texto": f"{libro.get('titulo', '')[:50]}{'...' if len(libro.get('titulo', '')) > 50 else ''}",
+                })
+                actualizar_lista_libros()
+                libro_dd.value = None
+                buscar_libro_input.value = ""
+                actualizar_dropdown_libros(libros_activos)
+
+            def agregar_usuario(e):
+                if not identificacion_dd.value:
+                    return
+                usuario = next((u for u in usuarios_activos if str(u.get("identificacion", "")) == identificacion_dd.value), None)
+                if not usuario:
+                    return
+                usuarios_seleccionados.clear()
+                usuarios_seleccionados.append({
+                    "id": str(usuario.get("identificacion", "")),
+                    "texto": f"{usuario.get('nombre_completo', 'Sin nombre')[:30]} - {usuario.get('identificacion', '')}",
+                })
+                actualizar_lista_usuarios()
+                identificacion_dd.value = None
+                buscar_usuario_input.value = ""
+                actualizar_dropdown_usuarios(usuarios_activos)
+
+            def remover_libro(libro_id):
+                libros_seleccionados[:] = [l for l in libros_seleccionados if l["id"] != libro_id]
+                actualizar_lista_libros()
+
+            def remover_usuario(usuario_id):
+                usuarios_seleccionados[:] = [u for u in usuarios_seleccionados if u["id"] != usuario_id]
+                actualizar_lista_usuarios()
+
+            buscar_libro_input = ft.TextField(
+                label="Buscar libro",
+                hint_text="Escriba el título...",
+                width=420,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+                on_change=filtrar_libros,
             )
+
+            libro_dd = ft.Dropdown(
+                label="Seleccione un libro *",
+                width=420,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+                options=[],
+            )
+
+            btn_agregar_libro = ft.IconButton(
+                icon=ft.Icons.ADD,
+                bgcolor="#1976d2",
+                icon_color=ft.Colors.WHITE,
+                tooltip="Agregar libro",
+                on_click=agregar_libro,
+            )
+
+            libros_seleccionados_column = ft.Column(spacing=4)
+
+            libros_container = ft.Container(
+                content=ft.Column([
+                    ft.Row([buscar_libro_input, libro_dd, btn_agregar_libro], spacing=8),
+                    ft.Text("Libro seleccionado:", size=12, color="#666"),
+                    libros_seleccionados_column,
+                ], spacing=8),
+                padding=10,
+                border=ft.border.all(1, "#cfd8dc"),
+                border_radius=8,
+                bgcolor="#fafafa",
+            )
+
+            buscar_usuario_input = ft.TextField(
+                label="Buscar usuario",
+                hint_text="Nombre o identificación...",
+                width=420,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+                on_change=filtrar_usuarios,
+            )
+
+            identificacion_dd = ft.Dropdown(
+                label="Seleccione un Usuario *",
+                width=420,
+                bgcolor="#f5f7fa",
+                border_radius=8,
+                options=[],
+            )
+
+            btn_agregar_usuario = ft.IconButton(
+                icon=ft.Icons.ADD,
+                bgcolor="#1976d2",
+                icon_color=ft.Colors.WHITE,
+                tooltip="Agregar usuario",
+                on_click=agregar_usuario,
+            )
+
+            usuarios_seleccionados_column = ft.Column(spacing=4)
+
+            usuarios_container = ft.Container(
+                content=ft.Column([
+                    ft.Row([buscar_usuario_input, identificacion_dd, btn_agregar_usuario], spacing=8),
+                    ft.Text("Usuario seleccionado:", size=12, color="#666"),
+                    usuarios_seleccionados_column,
+                ], spacing=8),
+                padding=10,
+                border=ft.border.all(1, "#cfd8dc"),
+                border_radius=8,
+                bgcolor="#fafafa",
+            )
+
+            actualizar_dropdown_libros(libros_activos)
+            actualizar_dropdown_usuarios(usuarios_activos)
             
             # Calcular fecha sugerida (20 días desde hoy)
             fecha_sugerida = (datetime.now() + timedelta(days=20)).strftime("%Y-%m-%d")
             
-            fecha_dev = ft.TextField(
+            fecha_dev_input = ft.TextField(
                 label="Fecha de Devolución Esperada *",
-                hint_text="YYYY-MM-DD",
-                prefix_icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
                 value=fecha_sugerida,
+                read_only=True,
+                width=420,
                 bgcolor="#f5f7fa",
                 border_radius=8,
             )
 
+            def on_date_change(e):
+                if e.control.value:
+                    fecha_dev_input.value = e.control.value.strftime("%Y-%m-%d")
+                    self._page.update()
+
+            date_picker = ft.DatePicker(
+                on_change=on_date_change,
+                first_date=datetime.now().date(),
+                last_date=(datetime.now() + timedelta(days=365)).date(),
+            )
+            self._page.overlay.append(date_picker)
+
+            def abrir_calendario(e):
+                date_picker.open = True
+                self._page.update()
+
+            fecha_row = ft.Row(
+                [
+                    fecha_dev_input,
+                    ft.IconButton(
+                        icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
+                        tooltip="Seleccionar fecha",
+                        on_click=abrir_calendario,
+                    ),
+                ],
+                spacing=8,
+            )
+
             def guardar(ev):
                 # Validaciones
-                if not libro_dd.value:
+                if not libros_seleccionados:
                     snack("❌ Debe seleccionar un libro", ok=False)
                     return
-                if not identificacion_dd.value or not identificacion_dd.value.strip():
+                if not usuarios_seleccionados:
                     snack("❌ Debe seleccionar un usuario", ok=False)
                     return
-                if not fecha_dev.value or not fecha_dev.value.strip():
+                if not fecha_dev_input.value or not fecha_dev_input.value.strip():
                     snack("❌ Debe ingresar la fecha de devolución", ok=False)
                     return
                 
                 try:
                     # Validar formato de fecha
-                    datetime.strptime(fecha_dev.value.strip(), "%Y-%m-%d")
+                    datetime.strptime(fecha_dev_input.value.strip(), "%Y-%m-%d")
                     
                     self._db.crear_prestamo(
-                        int(libro_dd.value),
-                        identificacion_dd.value.strip(),
-                        fecha_dev.value.strip()
+                        int(libros_seleccionados[0]["id"]),
+                        usuarios_seleccionados[0]["id"].strip(),
+                        fecha_dev_input.value.strip()
                     )
                     snack("✅ Préstamo creado exitosamente")
                     dlg.open = False
@@ -943,10 +1218,10 @@ class ReservasPage(ft.Column):
 
             def guardar_a_sala(ev):
                 # Validaciones iguales
-                if not libro_dd.value:
+                if not libros_seleccionados:
                     snack("❌ Debe seleccionar un libro", ok=False)
                     return
-                if not identificacion_dd.value or not identificacion_dd.value.strip():
+                if not usuarios_seleccionados:
                     snack("❌ Debe seleccionar un usuario", ok=False)
                     return
 
@@ -954,8 +1229,8 @@ class ReservasPage(ft.Column):
                     hoy_str = datetime.now().strftime("%Y-%m-%d")
                     # Crear préstamo normal con devolución esperada hoy
                     self._db.crear_prestamo(
-                        int(libro_dd.value),
-                        identificacion_dd.value.strip(),
+                        int(libros_seleccionados[0]["id"]),
+                        usuarios_seleccionados[0]["id"].strip(),
                         hoy_str,
                     )
                     # Buscar el préstamo recién creado
@@ -963,8 +1238,8 @@ class ReservasPage(ft.Column):
                     candidato = None
                     for p in prestamos:
                         if (
-                            int(p.get("id_libro", 0)) == int(libro_dd.value)
-                            and str(p.get("identificacion_usuario", "")).strip() == identificacion_dd.value.strip()
+                            int(p.get("id_libro", 0)) == int(libros_seleccionados[0]["id"])
+                            and str(p.get("identificacion_usuario", "")).strip() == usuarios_seleccionados[0]["id"].strip()
                         ):
                             candidato = p
                             break
@@ -987,50 +1262,88 @@ class ReservasPage(ft.Column):
 
             dlg = ft.AlertDialog(
                 modal=True,
-                title=ft.Row([
-                    ft.Icon(ft.Icons.ADD_CIRCLE_ROUNDED, color="#1976d2", size=28),
-                    ft.Text("Nuevo Préstamo", size=20, weight=ft.FontWeight.BOLD, color="#263238")
-                ]),
                 content=ft.Container(
-                    content=ft.Column([
-                        ft.Text("Complete la información del préstamo:", size=14, color="#546e7a"),
-                        ft.Divider(height=10, color="transparent"),
-                        libro_dd,
-                        identificacion_dd,
-                        fecha_dev,
-                        ft.Container(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
-                                ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
-                            ]),
-                            bgcolor="#e3f2fd",
-                            padding=10,
-                            border_radius=6,
-                        ),
-                    ], tight=True, spacing=15),
-                    width=500,
+                    width=1000,
+                    height=520,
+                    padding=ft.padding.all(16),
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=12,
+                    shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.with_opacity(0.06, ft.Colors.BLACK)),
+                    content=ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.Row(
+                                        [
+                                            ft.Container(
+                                                content=ft.Icon(ft.Icons.ADD_CIRCLE_ROUNDED, size=22, color="#1B6F7A"),
+                                                bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.GREEN),
+                                                width=40,
+                                                height=40,
+                                                border_radius=8,
+                                                alignment=ft.Alignment.CENTER,
+                                            ),
+                                            ft.Column(
+                                                [
+                                                    ft.Text("Nuevo Préstamo", size=16, weight=ft.FontWeight.BOLD),
+                                                    ft.Text("Información del préstamo", size=12, color="#666"),
+                                                ],
+                                                spacing=2,
+                                            ),
+                                        ],
+                                        spacing=10,
+                                    ),
+                                    ft.Container(
+                                        content=ft.Icon(ft.Icons.CLOSE, size=16, color="#666"),
+                                        width=32,
+                                        height=32,
+                                        alignment=ft.Alignment.CENTER,
+                                        on_click=lambda e: setattr(dlg, "open", False) or self._page.update(),
+                                        border_radius=8,
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            ft.Divider(height=8, color="transparent"),
+                            ft.Text("Complete la información del préstamo:", size=14, color="#546e7a"),
+                            libros_container,
+                            usuarios_container,
+                            fecha_row,
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
+                                    ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
+                                ]),
+                                bgcolor="#e3f2fd",
+                                padding=10,
+                                border_radius=6,
+                            ),
+                            ft.Row(
+                                [
+                                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update()),
+                                    ft.ElevatedButton(
+                                        "Crear Préstamo",
+                                        icon=ft.Icons.CHECK_ROUNDED,
+                                        on_click=guardar,
+                                        bgcolor="#1976d2",
+                                        color=ft.Colors.WHITE,
+                                    ),
+                                    ft.ElevatedButton(
+                                        "Crear 'A sala'",
+                                        icon=ft.Icons.SCHOOL_ROUNDED,
+                                        on_click=guardar_a_sala,
+                                        bgcolor="#6a1b9a",
+                                        color=ft.Colors.WHITE,
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.END,
+                                spacing=10,
+                            ),
+                        ],
+                        spacing=12,
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
                 ),
-                actions=[
-                    ft.TextButton(
-                        "Cancelar",
-                        on_click=lambda e: setattr(dlg, "open", False) or self._page.update()
-                    ),
-                    ft.ElevatedButton(
-                        "Crear Préstamo",
-                        icon=ft.Icons.CHECK_ROUNDED,
-                        on_click=guardar,
-                        bgcolor="#1976d2",
-                        color=ft.Colors.WHITE,
-                    ),
-                    ft.ElevatedButton(
-                        "Crear 'A sala'",
-                        icon=ft.Icons.SCHOOL_ROUNDED,
-                        on_click=guardar_a_sala,
-                        bgcolor="#6a1b9a",
-                        color=ft.Colors.WHITE,
-                    )
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
             )
 
             self._page.overlay.append(dlg)
@@ -1128,6 +1441,7 @@ class ReservasPage(ft.Column):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
             padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
             bgcolor=ft.Colors.WHITE,
             border_radius=12,
             shadow=ft.BoxShadow(
@@ -1166,7 +1480,18 @@ class ReservasPage(ft.Column):
         # =========================
         tabla_container = ft.Container(
             content=ft.Column([
-                ft.Row([self.reservas_table], scroll=ft.ScrollMode.AUTO),
+                ft.Container(
+                    content=self.reservas_table,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        [btn_prev, pagination_label, btn_next],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=6,
+                    ),
+                    padding=ft.padding.only(top=8),
+                ),
             ], scroll=ft.ScrollMode.AUTO),
             padding=20,
             bgcolor=ft.Colors.WHITE,
@@ -1177,6 +1502,7 @@ class ReservasPage(ft.Column):
                 color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
                 offset=ft.Offset(0, 2),
             ),
+            margin=ft.margin.symmetric(horizontal=30),
             expand=True,
         )
 
@@ -1198,7 +1524,8 @@ class ReservasPage(ft.Column):
                         ),
                         ft.Container(
                             content=tabla_container,
-                            padding=ft.padding.symmetric(horizontal=30),
+                            padding=0,
+                            alignment=ft.Alignment.CENTER,
                             expand=True,
                         ),
                     ],

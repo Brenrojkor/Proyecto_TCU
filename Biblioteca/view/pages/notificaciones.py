@@ -37,18 +37,34 @@ class NotificacionesPage(ft.Column):
             self._page.update()
         
         btn_proximas = ft.ElevatedButton(
-            "⚠️ Próximas a Vencer",
+            content=ft.Row([
+                ft.Icon(ft.Icons.WARNING_ROUNDED, size=18, color=ft.Colors.WHITE),
+                ft.Text("Próximas a Vencer", size=13, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE),
+            ], spacing=8),
             bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=lambda e: cambiar_tipo("proximas"),
+            height=44,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=2,
+            ),
             expand=1,
         )
         
         btn_vencidas = ft.ElevatedButton(
-            "❌ Vencidas",
+            content=ft.Row([
+                ft.Icon(ft.Icons.ERROR_ROUNDED, size=18, color=ft.Colors.BLACK),
+                ft.Text("Vencidas", size=13, weight=ft.FontWeight.W_500),
+            ], spacing=8),
             bgcolor="#e0e0e0",
             color=ft.Colors.BLACK,
             on_click=lambda e: cambiar_tipo("vencidas"),
+            height=44,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=0,
+            ),
             expand=1,
         )
         
@@ -73,6 +89,13 @@ class NotificacionesPage(ft.Column):
             dias_info = ""
             color_estado = ""
             icono_estado = None
+
+            usuario_nombre = (
+                reserva.get("nombre_usuario")
+                or reserva.get("nombre_completo")
+                or reserva.get("usuario")
+                or "N/A"
+            )
             
             if es_vencida:
                 dias_vencidos = reserva.get("dias_vencidos", 0)
@@ -116,9 +139,14 @@ class NotificacionesPage(ft.Column):
                                     color="#0d47a1",
                                 ),
                                 ft.Text(
-                                    f"Usuario: {reserva.get('nombre_usuario', 'N/A')} (Cédula: {reserva.get('identificacion_usuario', reserva.get('cedula_usuario', 'N/A'))})",
+                                    f"Nombre: {usuario_nombre}",
                                     size=13,
                                     color="#666",
+                                ),
+                                ft.Text(
+                                    f"Cédula: {reserva.get('identificacion_usuario', reserva.get('cedula_usuario', 'N/A'))}",
+                                    size=12,
+                                    color="#888",
                                 ),
                                 ft.Text(
                                     f"Fecha préstamo: {reserva.get('fecha_prestamo', 'N/A')}",
@@ -143,16 +171,28 @@ class NotificacionesPage(ft.Column):
                         # Botones de acción
                         ft.Column(
                             [
-                                ft.ElevatedButton(
-                                    "Extender Fecha",
-                                    icon=ft.Icons.UPDATE,
-                                    on_click=lambda e, r=reserva: abrir_dialogo_extender_fecha(r),
+                                ft.Container(
+                                    content=ft.Row([
+                                        ft.Icon(ft.Icons.UPDATE, color=ft.Colors.WHITE, size=18),
+                                        ft.Text("Extender", size=12, color=ft.Colors.WHITE, weight=ft.FontWeight.W_500),
+                                    ], spacing=6),
                                     bgcolor="#1976d2",
-                                    color=ft.Colors.WHITE,
+                                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                    width=120,
+                                    border_radius=8,
+                                    alignment=ft.Alignment.CENTER,
+                                    on_click=lambda e, r=reserva: abrir_dialogo_extender_fecha(r),
                                 ),
-                                ft.OutlinedButton(
-                                    "Ver Reserva",
-                                    icon=ft.Icons.VISIBILITY,
+                                ft.Container(
+                                    content=ft.Row([
+                                        ft.Icon(ft.Icons.VISIBILITY, color=ft.Colors.WHITE, size=18),
+                                        ft.Text("Ver", size=12, color=ft.Colors.WHITE, weight=ft.FontWeight.W_500),
+                                    ], spacing=6),
+                                    bgcolor="#00838f",
+                                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                    width=120,
+                                    border_radius=8,
+                                    alignment=ft.Alignment.CENTER,
                                     on_click=lambda e: navigate("/reservas"),
                                 ),
                             ],
@@ -173,20 +213,64 @@ class NotificacionesPage(ft.Column):
             
             fecha_actual = reserva.get("fecha_devolucion_esperada", reserva.get("fecha_devolucion", ""))
             
+            def format_ddmmyyyy(valor: str) -> str:
+                if not valor:
+                    return ""
+                try:
+                    return datetime.strptime(valor, "%Y-%m-%d").strftime("%d-%m-%Y")
+                except Exception:
+                    pass
+                try:
+                    return datetime.strptime(valor, "%d-%m-%Y").strftime("%d-%m-%Y")
+                except Exception:
+                    return str(valor)
+
+            def parse_fecha_input(valor: str):
+                if not valor:
+                    return None
+                v = str(valor).strip()
+                try:
+                    if "-" in v:
+                        parts = v.split("-")
+                        if len(parts[0]) == 4:
+                            return datetime.strptime(v, "%Y-%m-%d")
+                        return datetime.strptime(v, "%d-%m-%Y")
+                    return datetime.strptime(v, "%d/%m/%Y")
+                except Exception:
+                    return None
+
             # Calcular fecha sugerida (20 días más)
+            fecha_sugerida_str = ""
             try:
-                fecha_obj = datetime.strptime(fecha_actual, "%Y-%m-%d")
+                fecha_obj = datetime.strptime(str(fecha_actual), "%Y-%m-%d")
                 fecha_sugerida = fecha_obj + timedelta(days=20)
-                fecha_sugerida_str = fecha_sugerida.strftime("%Y-%m-%d")
-            except:
-                fecha_sugerida_str = ""
+                fecha_sugerida_str = fecha_sugerida.strftime("%d-%m-%Y")
+            except Exception:
+                pass
 
             nueva_fecha_input = ft.TextField(
                 label="Nueva Fecha de Devolución",
-                hint_text="YYYY-MM-DD",
+                hint_text="DD-MM-YYYY",
                 value=fecha_sugerida_str,
                 width=300,
                 prefix_icon=ft.Icons.CALENDAR_MONTH,
+            )
+
+            def aplicar_suma_dias(dias: int):
+                base = parse_fecha_input(nueva_fecha_input.value) or parse_fecha_input(str(fecha_actual))
+                if not base:
+                    base = datetime.now()
+                nueva = base + timedelta(days=dias)
+                nueva_fecha_input.value = nueva.strftime("%d-%m-%Y")
+                self._page.update()
+
+            quick_buttons = ft.Row(
+                [
+                    ft.OutlinedButton("+7 días", on_click=lambda e: aplicar_suma_dias(7)),
+                    ft.OutlinedButton("+15 días", on_click=lambda e: aplicar_suma_dias(15)),
+                    ft.OutlinedButton("+30 días", on_click=lambda e: aplicar_suma_dias(30)),
+                ],
+                spacing=8,
             )
 
             motivo_input = ft.TextField(
@@ -204,11 +288,19 @@ class NotificacionesPage(ft.Column):
                     snack("⚠️ Debes ingresar una fecha", ok=False)
                     return
                 
-                # Validar formato de fecha
+                # Validar y normalizar formato de fecha (acepta DD-MM-YYYY o YYYY-MM-DD)
                 try:
-                    datetime.strptime(nueva_fecha, "%Y-%m-%d")
-                except:
-                    snack("⚠️ Formato de fecha inválido. Usa YYYY-MM-DD", ok=False)
+                    if "-" in nueva_fecha:
+                        parts = nueva_fecha.split("-")
+                        if len(parts[0]) == 4:
+                            fecha_obj = datetime.strptime(nueva_fecha, "%Y-%m-%d")
+                        else:
+                            fecha_obj = datetime.strptime(nueva_fecha, "%d-%m-%Y")
+                    else:
+                        fecha_obj = datetime.strptime(nueva_fecha, "%d/%m/%Y")
+                    nueva_fecha = fecha_obj.strftime("%Y-%m-%d")
+                except Exception:
+                    snack("⚠️ Formato inválido. Usa DD-MM-YYYY", ok=False)
                     return
                 
                 try:
@@ -250,23 +342,23 @@ class NotificacionesPage(ft.Column):
                             color="#666",
                         ),
                         ft.Text(
-                            f"Fecha actual: {fecha_actual}",
+                            f"Fecha actual: {format_ddmmyyyy(str(fecha_actual))}",
                             size=13,
                             color="#888",
                         ),
                         ft.Divider(height=20),
                         nueva_fecha_input,
+                        quick_buttons,
                         motivo_input,
                     ],
                     tight=True,
                     spacing=12,
-                    width=350,
+                    width=460,
                 ),
                 actions=[
                     ft.TextButton("Cancelar", on_click=lambda e: cerrar_dialogo(dlg)),
                     ft.ElevatedButton(
                         "Guardar",
-                        icon=ft.Icons.SAVE,
                         on_click=guardar_extension,
                         bgcolor="#1976d2",
                         color=ft.Colors.WHITE,
@@ -382,56 +474,94 @@ class NotificacionesPage(ft.Column):
         # Header
         # =========================
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
             content=ft.Row(
                 [
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.NOTIFICATIONS_ACTIVE, size=28, color="#38638f"),
+                            ft.Icon(ft.Icons.NOTIFICATIONS_ACTIVE, size=32, color="#1565c0"),
                             ft.Text(
                                 "Notificaciones de Devoluciones",
-                                size=22,
+                                size=26,
                                 weight=ft.FontWeight.BOLD,
-                                color="#38638f",
+                                color="#263238",
                             ),
                         ],
                         spacing=12,
                     ),
                     ft.ElevatedButton(
-                        "Actualizar",
-                        icon=ft.Icons.REFRESH,
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.REFRESH, size=18),
+                            ft.Text("Actualizar", size=13, weight=ft.FontWeight.W_500),
+                        ], spacing=8),
                         on_click=lambda e: self.cargar_notificaciones(),
                         bgcolor="#1976d2",
                         color=ft.Colors.WHITE,
+                        height=44,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=10),
+                            elevation=2,
+                        ),
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
             ),
         )
 
         # =========================
         # Contenedor principal
         # =========================
-        container = ft.Container(
-            content=ft.Column(
-                [
-                    header,
-                    self.selector_tabs,
-                    self.notificaciones_container,
-                ],
-                spacing=20,
+        selector_container = ft.Container(
+            content=self.selector_tabs,
+            padding=ft.padding.symmetric(horizontal=30, vertical=15),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
             ),
+            margin=ft.margin.symmetric(horizontal=30),
+        )
+
+        notificaciones_card = ft.Container(
+            content=self.notificaciones_container,
             padding=20,
             bgcolor=ft.Colors.WHITE,
-            border_radius=8,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
+            margin=ft.margin.symmetric(horizontal=30),
             expand=True,
         )
 
         self.controls = [
-            ft.Row(
-                [container],
+            ft.Container(
+                content=ft.Column(
+                    [
+                        header,
+                        selector_container,
+                        notificaciones_card,
+                    ],
+                    spacing=20,
+                    expand=True,
+                ),
+                bgcolor="#f5f7fa",
+                padding=ft.padding.symmetric(vertical=20),
                 expand=True,
             )
         ]

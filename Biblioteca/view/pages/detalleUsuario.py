@@ -78,30 +78,45 @@ class DetalleUsuarioPage(ft.Column):
             selectable=True,
         )
 
-        # Header (estilo Contactos)
+        # Header (estilo páginas principales)
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-            bgcolor="#aedff4",
-            border_radius=8,
             content=ft.Row(
                 [
-                    ft.Text("Detalles del Usuario", size=22, weight=ft.FontWeight.BOLD, color="#38638f"),
+                    ft.Row([
+                        ft.Icon(ft.Icons.PEOPLE_ROUNDED, color="#1565c0", size=32),
+                        ft.Text("Detalles del Usuario", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
+                    ], spacing=12),
                     ft.Row([
                         ft.TextButton("Volver", on_click=lambda e: navigate("/usuarios")),
                     ], spacing=8),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
+            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+            margin=ft.margin.symmetric(horizontal=30),
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
         )
 
         # Tarjeta principal con sombra
         card = ft.Container(
-            width=980,
+            width=1100,
             padding=24,
             bgcolor=ft.Colors.WHITE,
             border_radius=12,
-            border=ft.border.all(1, "#d0d7de"),
-            shadow=ft.BoxShadow(spread_radius=0, blur_radius=12, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
+            border=ft.border.all(1, "#e0e0e0"),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=10,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2),
+            ),
             content=ft.Row(
                 [
                     # Columna izquierda: información principal
@@ -220,13 +235,20 @@ class DetalleUsuarioPage(ft.Column):
 
         # Composición final
         wrapper = ft.Container(
-            padding=20,
-            content=ft.Column([
-                header,
-                ft.Divider(height=12, color="transparent"),
-                ft.Row([card], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Divider(height=18, color="transparent"),
-            ], spacing=8, expand=True)
+            bgcolor="#f5f7fa",
+            padding=ft.padding.symmetric(vertical=20),
+            content=ft.Column(
+                [
+                    header,
+                    ft.Container(
+                        content=ft.Row([card], alignment=ft.MainAxisAlignment.CENTER),
+                        padding=ft.padding.symmetric(horizontal=30),
+                    ),
+                ],
+                spacing=20,
+                expand=True,
+            ),
+            expand=True,
         )
 
         # Asignar controles
