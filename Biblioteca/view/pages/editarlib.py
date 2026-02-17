@@ -10,6 +10,8 @@ import subprocess
 class EditarLibroPage(ft.Column):
     def __init__(self, navigate, page: ft.Page, id_libro: int):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self.db = Database()

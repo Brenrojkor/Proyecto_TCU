@@ -6,6 +6,8 @@ import math
 class ContactosPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self._db = Database()
@@ -134,7 +136,7 @@ class ContactosPage(ft.Column):
                 title=ft.Text("Eliminar contacto"),
                 content=ft.Text("¿Seguro que querés eliminar este contacto?"),
                 actions=[
-                    ft.TextButton("Cancelar", on_click=lambda e: close_dialog(dlg)),
+                    ft.ElevatedButton("Cancelar", on_click=lambda e: close_dialog(dlg), bgcolor="#757575", color=ft.Colors.WHITE),
                     ft.ElevatedButton("Eliminar", bgcolor=ft.Colors.RED, color=ft.Colors.WHITE, on_click=eliminar),
                 ],
             )
@@ -500,7 +502,7 @@ class ContactosPage(ft.Column):
 
         btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.crear_contacto,
         )
@@ -544,7 +546,7 @@ class ContactosPage(ft.Column):
             form_column,
             ft.Divider(height=6, color="transparent"),
             ft.Row([
-                ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_contacto),
+                ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo_contacto, bgcolor="#757575", color=ft.Colors.WHITE),
                 btn_guardar
             ], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)
@@ -666,7 +668,7 @@ class ContactosPage(ft.Column):
 
         btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.guardar_edicion_contacto,
         )
@@ -710,7 +712,7 @@ class ContactosPage(ft.Column):
             form_column,
             ft.Divider(height=6, color="transparent"),
             ft.Row([
-                ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_editar_contacto),
+                ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo_editar_contacto, bgcolor="#757575", color=ft.Colors.WHITE),
                 btn_guardar
             ], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)

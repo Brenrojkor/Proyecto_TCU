@@ -6,6 +6,8 @@ import math
 class CategoriasPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self.db = Database()
@@ -244,14 +246,21 @@ class CategoriasPage(ft.Column):
 
     def action_button(self, icon, bgcolor, tooltip, on_click=None):
         return ft.Container(
-            width=36,
-            height=36,
+            height=34,
+            padding=ft.padding.only(left=10, right=10, top=2, bottom=2),
             bgcolor=bgcolor,
-            border_radius=6,
+            border_radius=4,
             alignment=ft.Alignment.CENTER,
             tooltip=tooltip,
             on_click=on_click,
-            content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
+            content=ft.Row(
+                [
+                    ft.Icon(icon, color=ft.Colors.WHITE, size=16),
+                    ft.Text(tooltip, color=ft.Colors.WHITE, size=12),
+                ],
+                spacing=4,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
 
 
@@ -314,7 +323,7 @@ class CategoriasPage(ft.Column):
 
                     ft.Divider(height=6, color="transparent"),
 
-                    ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo), ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8), bgcolor="#0b495c", color=ft.Colors.WHITE, on_click=self.guardar_categoria)], alignment=ft.MainAxisAlignment.END, spacing=10),
+                    ft.Row([ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo, bgcolor="#757575", color=ft.Colors.WHITE), ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8), bgcolor="#1976d2", color=ft.Colors.WHITE, on_click=self.guardar_categoria)], alignment=ft.MainAxisAlignment.END, spacing=10),
                 ],
                 spacing=8,
             ),
@@ -375,6 +384,47 @@ class CategoriasPage(ft.Column):
         dlg.open = False
         self._page.update()
 
+    def confirmar_eliminar(self, categoria):
+        def eliminar(e):
+            try:
+                id_categoria = categoria.get("id_categoria") or categoria.get("id")
+                if not id_categoria:
+                    self._page.snack_bar = ft.SnackBar(
+                        ft.Text("No se pudo identificar la categoría"),
+                        bgcolor=ft.Colors.RED_500,
+                    )
+                    self._page.snack_bar.open = True
+                    self._page.update()
+                    return
+
+                self.db.eliminar_categoria(int(id_categoria))
+                self._page.snack_bar = ft.SnackBar(ft.Text("🗑️ Categoría eliminada"), bgcolor=ft.Colors.GREEN_500)
+                self._page.snack_bar.open = True
+                dlg.open = False
+                self._page.update()
+                self.mostrar_categorias()
+            except Exception as ex:
+                self._page.snack_bar = ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED_500)
+                self._page.snack_bar.open = True
+                self._page.update()
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Eliminar categoría"),
+            content=ft.Text("¿Seguro que querés eliminar esta categoría?"),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: self._cerrar_dialogo_confirmacion(dlg)),
+                ft.ElevatedButton("Eliminar", bgcolor=ft.Colors.RED, color=ft.Colors.WHITE, on_click=eliminar),
+            ],
+        )
+        self._page.overlay.append(dlg)
+        dlg.open = True
+        self._page.update()
+
+    def _cerrar_dialogo_confirmacion(self, dlg):
+        dlg.open = False
+        self._page.update()
+
     def _build_row(self, cat):
         return ft.DataRow(
             cells=[
@@ -388,11 +438,6 @@ class CategoriasPage(ft.Column):
                                 ft.Colors.ORANGE,
                                 "Editar",
                                 lambda e, c=cat: self.abrir_dialogo_editar(c),
-                            ),
-                            self.action_button(
-                                ft.Icons.BLOCK,
-                                ft.Colors.RED,
-                                "Desactivar",
                             ),
                         ],
                         spacing=10,

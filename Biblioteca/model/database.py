@@ -189,6 +189,22 @@ class Database:
             (int(id_solicitud),)
         )
         self.conn.commit()
+        
+    def eliminar_categoria(self, id_categoria: int):
+        self.cursor.execute(
+            "EXEC dbo.sp_EliminarCategoria @id_categoria = ?",
+            (int(id_categoria),)
+        )
+        self.conn.commit()
+        
+    def eliminar_autor(self, id_autor: int):
+        self.cursor.execute(
+            "EXEC dbo.sp_EliminarAutor @id_autor = ?",
+            (int(id_autor),)
+        )
+        self.conn.commit()
+  
+  
   
     def get_usuario_detalle(self, id_usuario: int):
         try:

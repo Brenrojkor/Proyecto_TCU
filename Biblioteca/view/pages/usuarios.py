@@ -12,6 +12,8 @@ import math
 class UsuariosPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self.db = Database()
@@ -234,35 +236,92 @@ class UsuariosPage(ft.Column):
             if "id_usuario" in all_keys:
                 all_keys.discard("id_usuario")
 
+            # Orden específico de columnas solicitado
             preferred = [
                 "nombre_completo",
                 "identificacion",
+                "discapacidad",
                 "provincia",
                 "canton",
                 "distrito",
-                "telefono",
+                "rangoedad",
+                "sexo",
+                "grupo",
                 "anio",
+                "telefono",
                 "activo",
+                "fecha_registro",
             ]
             keys = [k for k in preferred if k in all_keys]
-            rest = sorted([k for k in all_keys if k not in keys and k != "comentario"])
-            keys.extend(rest)
-            if "comentario" in all_keys:
-                keys.append("comentario")
 
             def human(k: str) -> str:
-                return k.replace("_", " ").title()
+                mapping = {
+                    "nombre_completo": "Nombre Completo",
+                    "identificacion": "Identificación",
+                    "discapacidad": "Discapacidad",
+                    "provincia": "Provincia",
+                    "canton": "Cantón",
+                    "distrito": "Distrito",
+                    "rangoedad": "Rango de Edad",
+                    "sexo": "Sexo",
+                    "grupo": "Grupo",
+                    "anio": "Año",
+                    "telefono": "Teléfono",
+                    "activo": "Activo",
+                    "fecha_registro": "Fecha de Registro",
+                }
+                return mapping.get(k.lower(), k.replace("_", " ").title())
 
             headers = [human(k) for k in keys]
 
             wb = Workbook()
             ws = wb.active
             ws.title = "Usuarios"
-            ws.append(headers)
+            
+            # Importar estilos
+            from openpyxl.styles import Border, Side, PatternFill, Font, Alignment
+            
+            # Estilos
+            header_fill = PatternFill(start_color="1976d2", end_color="1976d2", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+            # Bordes
+            thin_border = Border(
+                left=Side(style='thin', color="cccccc"),
+                right=Side(style='thin', color="cccccc"),
+                top=Side(style='thin', color="cccccc"),
+                bottom=Side(style='thin', color="cccccc")
+            )
+            
+            # Rellenos alternados
+            row_fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+            row_fill_light = PatternFill(start_color="f5f7fa", end_color="f5f7fa", fill_type="solid")
+            
+            # Agregar encabezados con estilo
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_alignment
+                cell.border = thin_border
+            
+            ws.row_dimensions[1].height = 25
 
-            def serialize(v):
+            def serialize(v, key=""):
                 if v is None:
                     return ""
+                # Formato especial para fecha_registro: día-mes-año
+                if key == "fecha_registro":
+                    if isinstance(v, datetime):
+                        return v.strftime("%d-%m-%Y")
+                    if isinstance(v, str):
+                        try:
+                            dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+                            return dt.strftime("%d-%m-%Y")
+                        except:
+                            return v
                 # Normalizar booleanos y 0/1 a Sí/No
                 if isinstance(v, bool):
                     return "Sí" if v else "No"
@@ -285,9 +344,32 @@ class UsuariosPage(ft.Column):
                     return v.isoformat()
                 return str(v)
 
-            for u in usuarios:
-                row = [serialize(u.get(k)) if isinstance(u, dict) else "" for k in keys]
-                ws.append(row)
+            for row_idx, u in enumerate(usuarios, 2):
+                # Serializar con el key para formato especial de fecha
+                row_data = [serialize(u.get(k), k) if isinstance(u, dict) else "" for k in keys]
+                
+                # Determinar relleno (alternado)
+                current_fill = row_fill_light if row_idx % 2 == 0 else row_fill_white
+                
+                for col_idx, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.value = value
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+            # Ajustar ancho de columnas automáticamente
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
 
             nombre = f"usuarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             out_path = os.path.join(tempfile.gettempdir(), nombre)
@@ -398,6 +480,298 @@ class UsuariosPage(ft.Column):
                             on_click=on_click, alignment=ft.Alignment.CENTER,
                             content=ft.Icon(icon, color=ft.Colors.WHITE, size=18))
 
+    # =========================
+    # Ver historial de usuario
+    # =========================
+    def ver_historial_usuario(self, identificacion):
+        if not identificacion:
+            self.snack("❌ No se encontró la identificación", ok=False)
+            return
+        
+        try:
+            print(f"Buscando historial para identificación: {identificacion}")
+            historial = self.db.get_historial_prestamos_usuario(identificacion)
+            print(f"Historial obtenido: {len(historial)} registros")
+            
+            if not historial:
+                # Obtener nombre del usuario
+                usuario = next((u for u in self._usuarios_cache if u.get("identificacion") == identificacion), None)
+                nombre_usuario = usuario.get("nombre_completo", "Usuario") if usuario else "Usuario"
+                
+                # Mostrar ventana emergente cuando no hay historial
+                dlg_sin_historial = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.INFO_OUTLINE, color="#ff9800", size=24),
+                        ft.Text("Sin Historial", size=18, weight=ft.FontWeight.BOLD)
+                    ], spacing=8),
+                    content=ft.Text(
+                        f"No hay historial de préstamos para: {nombre_usuario}",
+                        size=13,
+                        color="#263238",
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    actions=[
+                        ft.ElevatedButton(
+                            "Cerrar",
+                            on_click=lambda e: setattr(dlg_sin_historial, "open", False) or self._page.update(),
+                            bgcolor="#1976d2",
+                            color=ft.Colors.WHITE,
+                        ),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.CENTER,
+                )
+                
+                self._page.overlay.append(dlg_sin_historial)
+                dlg_sin_historial.open = True
+                self._page.update()
+                return
+            
+            # Tabla de historial
+            historial_table = ft.DataTable(
+                bgcolor=ft.Colors.WHITE,
+                border=ft.border.all(1, "#e0e0e0"),
+                border_radius=8,
+                heading_row_color="#f5f7fa",
+                heading_row_height=48,
+                data_row_min_height=50,
+                column_spacing=20,
+                columns=[
+                    ft.DataColumn(label=ft.Text("Libro", weight=ft.FontWeight.BOLD, size=12)),
+                    ft.DataColumn(label=ft.Text("Préstamo", weight=ft.FontWeight.BOLD, size=12)),
+                    ft.DataColumn(label=ft.Text("Devolución", weight=ft.FontWeight.BOLD, size=12)),
+                    ft.DataColumn(label=ft.Text("Estado", weight=ft.FontWeight.BOLD, size=12)),
+                    ft.DataColumn(label=ft.Text("Observaciones", weight=ft.FontWeight.BOLD, size=12)),
+                ],
+                rows=[],
+            )
+            
+            for item in historial:
+                estado = item.get("estado_calculado") or item.get("estado", "PRESTADO")
+                estado_color = "#2e7d32" if estado == "DEVUELTO" else "#d32f2f" if estado == "NO DEVUELTO" else "#1976d2"
+                
+                fecha_prestamo = item.get("fecha_prestamo", "")
+                if hasattr(fecha_prestamo, 'strftime'):
+                    fecha_prestamo = fecha_prestamo.strftime("%Y-%m-%d")
+                
+                fecha_dev = item.get("fecha_devolucion_real") or item.get("fecha_devolucion_esperada", "")
+                if hasattr(fecha_dev, 'strftime'):
+                    fecha_dev = fecha_dev.strftime("%Y-%m-%d")
+                
+                observaciones = item.get("observaciones", "") or ""
+                
+                historial_table.rows.append(
+                    ft.DataRow(cells=[
+                        ft.DataCell(ft.Text(item.get("libro_titulo", "")[:30], size=12)),
+                        ft.DataCell(ft.Text(str(fecha_prestamo), size=12)),
+                        ft.DataCell(ft.Text(str(fecha_dev) if fecha_dev else "—", size=12)),
+                        ft.DataCell(
+                            ft.Container(
+                                content=ft.Text(estado, color=ft.Colors.WHITE, size=11, weight=ft.FontWeight.BOLD),
+                                bgcolor=estado_color,
+                                padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                                border_radius=6,
+                            )
+                        ),
+                        ft.DataCell(ft.Text(observaciones[:40] + ("..." if len(observaciones) > 40 else ""), size=12, color="#546e7a")),
+                    ])
+                )
+            
+            usuario_nombre = historial[0].get("nombre_usuario", "Usuario")
+            
+            # Función para exportar a Excel/CSV
+            def exportar_excel(e):
+                try:
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                    import subprocess
+                    import sys
+                    
+                    # Crear workbook
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "Historial Préstamos"
+                    
+                    # Estilos
+                    header_fill = PatternFill(start_color="1976d2", end_color="1976d2", fill_type="solid")
+                    header_font = Font(bold=True, color="FFFFFF", size=12)
+                    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    
+                    # Bordes
+                    thin_border = Border(
+                        left=Side(style='thin', color="cccccc"),
+                        right=Side(style='thin', color="cccccc"),
+                        top=Side(style='thin', color="cccccc"),
+                        bottom=Side(style='thin', color="cccccc")
+                    )
+                    
+                    # Rellenos alternados para filas
+                    row_fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+                    row_fill_light = PatternFill(start_color="f5f7fa", end_color="f5f7fa", fill_type="solid")
+                    
+                    headers = ['Usuario', 'Libro', 'Préstamo', 'Devolución', 'Estado', 'Observaciones']
+                    for col, header in enumerate(headers, 1):
+                        cell = ws.cell(row=1, column=col)
+                        cell.value = header
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = header_alignment
+                        cell.border = thin_border
+                    
+                    # Agregar datos
+                    for row_idx, item in enumerate(historial, 2):
+                        estado = item.get("estado_calculado") or item.get("estado", "PRESTADO")
+                        
+                        fecha_prestamo = item.get("fecha_prestamo", "")
+                        if hasattr(fecha_prestamo, 'strftime'):
+                            fecha_prestamo = fecha_prestamo.strftime("%Y-%m-%d")
+                        
+                        fecha_dev = item.get("fecha_devolucion_real") or item.get("fecha_devolucion_esperada", "")
+                        if hasattr(fecha_dev, 'strftime'):
+                            fecha_dev = fecha_dev.strftime("%Y-%m-%d")
+                        elif not fecha_dev:
+                            fecha_dev = "Pendiente"
+                        
+                        observaciones = item.get("observaciones", "") or ""
+                        
+                        # Determinar relleno (alternado)
+                        current_fill = row_fill_light if row_idx % 2 == 0 else row_fill_white
+                        
+                        # Determinar color de estado
+                        if estado == "DEVUELTO":
+                            estado_fill = PatternFill(start_color="c8e6c9", end_color="c8e6c9", fill_type="solid")
+                        elif estado == "NO DEVUELTO":
+                            estado_fill = PatternFill(start_color="ffcdd2", end_color="ffcdd2", fill_type="solid")
+                        else:
+                            estado_fill = PatternFill(start_color="bbdefb", end_color="bbdefb", fill_type="solid")
+                        
+                        # Celda de Usuario
+                        cell = ws.cell(row=row_idx, column=1)
+                        cell.value = item.get("nombre_usuario", "")
+                        cell.fill = current_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="left", vertical="center")
+                        
+                        # Celda de Libro
+                        cell = ws.cell(row=row_idx, column=2)
+                        cell.value = item.get("libro_titulo", "")
+                        cell.fill = current_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                        
+                        # Celda de Préstamo
+                        cell = ws.cell(row=row_idx, column=3)
+                        cell.value = str(fecha_prestamo)
+                        cell.fill = current_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        
+                        # Celda de Devolución
+                        cell = ws.cell(row=row_idx, column=4)
+                        cell.value = str(fecha_dev)
+                        cell.fill = current_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        
+                        # Celda de Estado
+                        cell = ws.cell(row=row_idx, column=5)
+                        cell.value = estado
+                        cell.fill = estado_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                        cell.font = Font(bold=True, size=10)
+                        
+                        # Celda de Observaciones
+                        cell = ws.cell(row=row_idx, column=6)
+                        cell.value = observaciones
+                        cell.fill = current_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                    
+                    # Ajustar ancho y altura de columnas
+                    ws.column_dimensions['A'].width = 25
+                    ws.column_dimensions['B'].width = 35
+                    ws.column_dimensions['C'].width = 15
+                    ws.column_dimensions['D'].width = 15
+                    ws.column_dimensions['E'].width = 12
+                    ws.column_dimensions['F'].width = 40
+                    ws.row_dimensions[1].height = 25
+                    
+                    # Guardar en temp
+                    nombre = f"historial_{identificacion}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    out_path = os.path.join(tempfile.gettempdir(), nombre)
+                    
+                    wb.save(out_path)
+                    self.snack(f"✅ Excel generado: {nombre}")
+                    
+                    # Abrir archivo
+                    if sys.platform == 'win32':
+                        os.startfile(out_path)
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', out_path])
+                    else:
+                        subprocess.Popen(['xdg-open', out_path])
+                    
+                except Exception as ex:
+                    import traceback
+                    print(traceback.format_exc())
+                    self.snack(f"❌ Error al exportar: {str(ex)}", ok=False)
+            
+            dlg_historial = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.HISTORY_ROUNDED, color="#1976d2", size=28),
+                    ft.Text("Historial de Préstamos", size=20, weight=ft.FontWeight.BOLD)
+                ]),
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(usuario_nombre, size=18, weight=ft.FontWeight.BOLD, color="#263238"),
+                                ft.Text(f"ID: {identificacion}", size=14, color="#757575"),
+                                ft.Text(f"Total de préstamos: {len(historial)}", size=14, weight=ft.FontWeight.W_500, color="#1976d2"),
+                            ]),
+                            bgcolor="#e3f2fd",
+                            padding=12,
+                            border_radius=8,
+                        ),
+                        ft.Container(
+                            content=ft.Column([historial_table], scroll=ft.ScrollMode.AUTO),
+                            height=260,
+                        ),
+                    ], spacing=12),
+                    width=700,
+                    height=420,
+                ),
+                actions=[
+                    ft.ElevatedButton(
+                        "Descargar",
+                        icon=ft.Icons.DOWNLOAD_ROUNDED,
+                        on_click=exportar_excel,
+                        bgcolor="#1976d2",
+                        color=ft.Colors.WHITE,
+                        width=140,
+                    ),
+                    ft.ElevatedButton(
+                        "Cerrar",
+                        on_click=lambda e: setattr(dlg_historial, "open", False) or self._page.update(),
+                        bgcolor="#1976d2",
+                        color=ft.Colors.WHITE,
+                        width=100,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            
+            self._page.overlay.append(dlg_historial)
+            dlg_historial.open = True
+            self._page.update()
+            
+        except Exception as ex:
+            import traceback
+            print(traceback.format_exc())
+            self.snack(f"❌ Error: {str(ex)}", ok=False)
+
     # Abrir diálogo
     def abrir_dialogo_crear(self, e):
         self.usuario_editando = None
@@ -430,7 +804,7 @@ class UsuariosPage(ft.Column):
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.guardar_usuario,
         )
@@ -455,7 +829,10 @@ class UsuariosPage(ft.Column):
             ft.Divider(height=8, color="transparent"),
             form_column,
             ft.Divider(height=6, color="transparent"),
-            ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo), self.btn_guardar], alignment=ft.MainAxisAlignment.END, spacing=12)
+            ft.Row([
+                ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo, bgcolor="#757575", color=ft.Colors.WHITE),
+                self.btn_guardar
+            ], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)
 
         self.dialog = ft.AlertDialog(modal=True, content=ft.Container(width=780, padding=ft.padding.all(18), bgcolor=ft.Colors.WHITE, border_radius=12, content=content))
@@ -497,7 +874,7 @@ class UsuariosPage(ft.Column):
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.guardar_usuario,
         )
@@ -524,7 +901,10 @@ class UsuariosPage(ft.Column):
             ft.Divider(height=8, color="transparent"),
             form_column,
             ft.Divider(height=6, color="transparent"),
-            ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo), self.btn_guardar], alignment=ft.MainAxisAlignment.END, spacing=12)
+            ft.Row([
+                ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo, bgcolor="#757575", color=ft.Colors.WHITE),
+                self.btn_guardar
+            ], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)
 
         self.dialog = ft.AlertDialog(modal=True, content=ft.Container(width=780, padding=ft.padding.all(18), bgcolor=ft.Colors.WHITE, border_radius=12, content=content))
@@ -760,6 +1140,12 @@ class UsuariosPage(ft.Column):
                             ft.Colors.BLUE,
                             "Detalles",
                             lambda e, id=usuario["id_usuario"]: self.navigate(f"/detalleusuario/{id}")
+                        ),
+                        self.action_button(
+                            ft.Icons.HISTORY_ROUNDED,
+                            "#6a1b9a",
+                            "Ver historial",
+                            lambda e, ident=identificacion_val: self.ver_historial_usuario(ident)
                         ),
                         self.action_button(ft.Icons.EDIT, ft.Colors.ORANGE, "Editar", lambda e, u=usuario: self.abrir_dialogo_editar(u)),
                         self.action_button(

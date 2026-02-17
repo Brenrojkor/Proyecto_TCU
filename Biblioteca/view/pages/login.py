@@ -4,6 +4,8 @@ from model.database import Database
 class LoginPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self._db = Database()

@@ -7,6 +7,8 @@ import math
 class ReservasPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self._db = Database()
@@ -239,12 +241,12 @@ class ReservasPage(ft.Column):
                                 ),
                                 ft.Container(
                                     content=ft.Icon(ft.Icons.EVENT_AVAILABLE_ROUNDED, color=ft.Colors.WHITE, size=18),
-                                    bgcolor="#0288d1",
+                                    bgcolor="#0288d1" if estado != "DEVUELTO" else "#9e9e9e",
                                     width=36,
                                     height=36,
                                     border_radius=8,
                                     alignment=ft.Alignment(0, 0),
-                                    tooltip="Renovar préstamo",
+                                    tooltip="Renovar préstamo" if estado != "DEVUELTO" else "Ya devuelto",
                                     on_click=lambda e, rr=r: renovar_prestamo(rr) if estado != "DEVUELTO" else None,
                                 ),
                                 ft.Container(
@@ -535,31 +537,100 @@ class ReservasPage(ft.Column):
             except Exception:
                 pass
 
-            sugerida = (base_date + timedelta(days=20)).strftime("%Y-%m-%d")
+            # Inicializar con la fecha esperada + 7 días
+            fecha_sugerida = (base_date + timedelta(days=7)).strftime("%d-%m-%Y")
 
-            nueva_fecha_field = ft.TextField(
+            # Campo de texto para mostrar la fecha
+            fecha_dev_input = ft.TextField(
                 label="Nueva fecha de devolución",
-                hint_text="YYYY-MM-DD",
-                prefix_icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
-                value=sugerida,
+                value=fecha_sugerida,
+                read_only=True,
+                width=350,
                 bgcolor="#f5f7fa",
                 border_radius=8,
+                text_size=14,
             )
+
+            # DatePicker
+            def on_date_change(e):
+                if e.control.value:
+                    fecha_dev_input.value = e.control.value.strftime("%d-%m-%Y")
+                    self._page.update()
+
+            date_picker = ft.DatePicker(
+                on_change=on_date_change,
+                first_date=datetime.now().date(),
+                last_date=(datetime.now() + timedelta(days=365)).date(),
+            )
+            self._page.overlay.append(date_picker)
+
+            def abrir_calendario(e):
+                date_picker.open = True
+                self._page.update()
+
+            # Botones de accesos rápidos
+            def agregar_dias(dias):
+                def handler(e):
+                    nueva_fecha = base_date + timedelta(days=dias)
+                    fecha_dev_input.value = nueva_fecha.strftime("%d-%m-%Y")
+                    self._page.update()
+                return handler
+
+            # Fila con campo de fecha y botón calendario
+            fecha_row = ft.Row(
+                [
+                    fecha_dev_input,
+                    ft.IconButton(
+                        icon=ft.Icons.CALENDAR_TODAY_ROUNDED,
+                        tooltip="Seleccionar fecha",
+                        on_click=abrir_calendario,
+                        bgcolor="#e3f2fd",
+                        icon_color="#1976d2",
+                    ),
+                ],
+                spacing=8,
+            )
+
+            # Botones rápidos para agregar días
+            botones_rapidos = ft.Row([
+                ft.ElevatedButton(
+                    "+7 días",
+                    on_click=agregar_dias(7),
+                    bgcolor="#e3f2fd",
+                    color="#1976d2",
+                    height=36,
+                ),
+                ft.ElevatedButton(
+                    "+15 días",
+                    on_click=agregar_dias(15),
+                    bgcolor="#e3f2fd",
+                    color="#1976d2",
+                    height=36,
+                ),
+                ft.ElevatedButton(
+                    "+30 días",
+                    on_click=agregar_dias(30),
+                    bgcolor="#e3f2fd",
+                    color="#1976d2",
+                    height=36,
+                ),
+            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER)
 
             def confirmar_renovacion(e):
                 try:
-                    # Validar formato
-                    datetime.strptime((nueva_fecha_field.value or "").strip(), "%Y-%m-%d")
+                    # Convertir fecha de dd-mm-yyyy a yyyy-mm-dd
+                    fecha_display = fecha_dev_input.value
+                    fecha_obj = datetime.strptime(fecha_display, "%d-%m-%Y")
+                    fecha_str = fecha_obj.strftime("%Y-%m-%d")
+                    
                     self._db.actualizar_fecha_devolucion_esperada(
                         int(reserva.get("id_reserva")),
-                        (nueva_fecha_field.value or "").strip()
+                        fecha_str
                     )
                     snack("✅ Préstamo renovado correctamente")
                     dlg.open = False
                     self._page.update()
                     cargar_reservas()
-                except ValueError:
-                    snack("❌ Formato de fecha inválido. Use YYYY-MM-DD", ok=False)
                 except Exception as ex:
                     snack(f"❌ Error: {str(ex)}", ok=False)
 
@@ -589,27 +660,29 @@ class ReservasPage(ft.Column):
                             border_radius=8,
                         ),
                         ft.Divider(height=8, color="transparent"),
-                        nueva_fecha_field,
+                        fecha_row,
+                        ft.Divider(height=8, color="transparent"),
+                        ft.Text("Accesos rápidos:", size=12, color="#757575", weight=ft.FontWeight.BOLD),
+                        botones_rapidos,
                         ft.Container(
                             content=ft.Row([
                                 ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
-                                ft.Text("Fecha sugerida: 20 días desde hoy", size=12, color="#757575", italic=True),
+                                ft.Text("Los días se agregan a la fecha de devolución actual", size=11, color="#757575", italic=True),
                             ]),
                             bgcolor="#e3f2fd",
                             padding=8,
                             border_radius=6,
                         ),
-                    ], tight=True, spacing=10),
-                    width=460,
-                    height=260,
+                    ], tight=True, spacing=6),
+                    width=480,
                 ),
                 actions=[
-                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update()),
+                    ft.ElevatedButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or self._page.update(), bgcolor="#757575", color=ft.Colors.WHITE),
                     ft.ElevatedButton(
                         "Renovar",
                         icon=ft.Icons.CHECK_ROUNDED,
                         on_click=confirmar_renovacion,
-                        bgcolor="#0288d1",
+                        bgcolor="#1976d2",
                         color=ft.Colors.WHITE,
                     ),
                 ],
@@ -710,84 +783,6 @@ class ReservasPage(ft.Column):
                     snack(f"ℹ️ No hay historial para la identificación {identificacion}")
                     return
                 
-                # Función para exportar a Excel/CSV
-                def exportar_excel(e):
-                    try:
-                        import csv
-                        from datetime import datetime
-                        import os
-                        
-                        # Guardar en carpeta Downloads del usuario
-                        downloads = os.path.join(os.path.expanduser("~"), "Downloads")
-                        nombre_archivo = os.path.join(downloads, f"historial_{identificacion}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-                        
-                        with open(nombre_archivo, 'w', newline='', encoding='utf-8-sig') as archivo:
-                            writer = csv.writer(archivo)
-                            writer.writerow(['Libro', 'Usuario', 'Identificación', 'Fecha Préstamo', 'Fecha Devolución Esperada', 'Fecha Devolución Real', 'Estado', 'Observaciones'])
-                            
-                            for item in historial:
-                                estado = item.get("estado_calculado") or item.get("estado", "PRESTADO")
-                                
-                                fecha_prestamo = item.get("fecha_prestamo", "")
-                                if hasattr(fecha_prestamo, 'strftime'):
-                                    fecha_prestamo = fecha_prestamo.strftime("%Y-%m-%d")
-                                
-                                fecha_dev_esperada = item.get("fecha_devolucion_esperada", "")
-                                if hasattr(fecha_dev_esperada, 'strftime'):
-                                    fecha_dev_esperada = fecha_dev_esperada.strftime("%Y-%m-%d")
-                                
-                                fecha_dev_real = item.get("fecha_devolucion_real", "")
-                                if hasattr(fecha_dev_real, 'strftime'):
-                                    fecha_dev_real = fecha_dev_real.strftime("%Y-%m-%d")
-                                elif not fecha_dev_real:
-                                    fecha_dev_real = "Pendiente"
-                                
-                                writer.writerow([
-                                    item.get("libro_titulo", ""),
-                                    item.get("nombre_usuario", ""),
-                                    identificacion,
-                                    fecha_prestamo,
-                                    fecha_dev_esperada,
-                                    fecha_dev_real,
-                                    estado,
-                                    item.get("observaciones", "") or ""
-                                ])
-                        
-                        # Mensaje de confirmación
-                        snack(f"✅ Excel descargado exitosamente en Downloads")
-                        
-                        # Diálogo de confirmación adicional
-                        dlg_descargado = ft.AlertDialog(
-                            title=ft.Row([
-                                ft.Icon(ft.Icons.CHECK_CIRCLE, color="#2e7d32", size=32),
-                                ft.Text("Excel Descargado", size=18, weight=ft.FontWeight.BOLD)
-                            ]),
-                            content=ft.Container(
-                                content=ft.Column([
-                                    ft.Text("El archivo se descargó correctamente en:", size=14),
-                                    ft.Container(
-                                        content=ft.Text(nombre_archivo, size=12, color="#1565c0", selectable=True),
-                                        bgcolor="#e3f2fd",
-                                        padding=10,
-                                        border_radius=5,
-                                    ),
-                                ], spacing=10),
-                                width=500,
-                            ),
-                            actions=[
-                                ft.TextButton("OK", on_click=lambda e: setattr(dlg_descargado, "open", False) or self._page.update())
-                            ],
-                        )
-                        
-                        self._page.overlay.append(dlg_descargado)
-                        dlg_descargado.open = True
-                        self._page.update()
-                        
-                    except Exception as ex:
-                        import traceback
-                        print(traceback.format_exc())
-                        snack(f"❌ Error al exportar: {str(ex)}", ok=False)
-                
                 # Tabla de historial
                 historial_table = ft.DataTable(
                     bgcolor=ft.Colors.WHITE,
@@ -802,6 +797,7 @@ class ReservasPage(ft.Column):
                         ft.DataColumn(label=ft.Text("Préstamo", weight=ft.FontWeight.BOLD, size=12)),
                         ft.DataColumn(label=ft.Text("Devolución", weight=ft.FontWeight.BOLD, size=12)),
                         ft.DataColumn(label=ft.Text("Estado", weight=ft.FontWeight.BOLD, size=12)),
+                        ft.DataColumn(label=ft.Text("Observaciones", weight=ft.FontWeight.BOLD, size=12)),
                     ],
                     rows=[],
                 )
@@ -818,6 +814,8 @@ class ReservasPage(ft.Column):
                     if hasattr(fecha_dev, 'strftime'):
                         fecha_dev = fecha_dev.strftime("%Y-%m-%d")
                     
+                    observaciones = item.get("observaciones", "") or ""
+                    
                     historial_table.rows.append(
                         ft.DataRow(cells=[
                             ft.DataCell(ft.Text(item.get("libro_titulo", "")[:30], size=12)),
@@ -831,10 +829,153 @@ class ReservasPage(ft.Column):
                                     border_radius=6,
                                 )
                             ),
+                            ft.DataCell(ft.Text(observaciones[:40] + ("..." if len(observaciones) > 40 else ""), size=12, color="#546e7a")),
                         ])
                     )
                 
                 usuario_nombre = historial[0].get("nombre_usuario", "Usuario")
+                
+                # Función para exportar a Excel/CSV
+                def exportar_excel(e):
+                    try:
+                        from openpyxl import Workbook
+                        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                        from datetime import datetime
+                        import tempfile
+                        import os
+                        import subprocess
+                        import sys
+                        
+                        # Crear workbook
+                        wb = Workbook()
+                        ws = wb.active
+                        ws.title = "Historial Préstamos"
+                        
+                        # Estilos
+                        header_fill = PatternFill(start_color="1976d2", end_color="1976d2", fill_type="solid")
+                        header_font = Font(bold=True, color="FFFFFF", size=12)
+                        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                        
+                        # Bordes
+                        thin_border = Border(
+                            left=Side(style='thin', color="cccccc"),
+                            right=Side(style='thin', color="cccccc"),
+                            top=Side(style='thin', color="cccccc"),
+                            bottom=Side(style='thin', color="cccccc")
+                        )
+                        
+                        # Rellenos alternados para filas
+                        row_fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+                        row_fill_light = PatternFill(start_color="f5f7fa", end_color="f5f7fa", fill_type="solid")
+                        
+                        headers = ['Usuario', 'Libro', 'Préstamo', 'Devolución', 'Estado', 'Observaciones']
+                        for col, header in enumerate(headers, 1):
+                            cell = ws.cell(row=1, column=col)
+                            cell.value = header
+                            cell.fill = header_fill
+                            cell.font = header_font
+                            cell.alignment = header_alignment
+                            cell.border = thin_border
+                        
+                        # Agregar datos
+                        for row_idx, item in enumerate(historial, 2):
+                            estado = item.get("estado_calculado") or item.get("estado", "PRESTADO")
+                            
+                            fecha_prestamo = item.get("fecha_prestamo", "")
+                            if hasattr(fecha_prestamo, 'strftime'):
+                                fecha_prestamo = fecha_prestamo.strftime("%Y-%m-%d")
+                            
+                            fecha_dev = item.get("fecha_devolucion_real") or item.get("fecha_devolucion_esperada", "")
+                            if hasattr(fecha_dev, 'strftime'):
+                                fecha_dev = fecha_dev.strftime("%Y-%m-%d")
+                            elif not fecha_dev:
+                                fecha_dev = "Pendiente"
+                            
+                            observaciones = item.get("observaciones", "") or ""
+                            
+                            # Determinar relleno (alternado)
+                            current_fill = row_fill_light if row_idx % 2 == 0 else row_fill_white
+                            
+                            # Determinar color de estado
+                            estado_color = "FFFFFF"
+                            if estado == "DEVUELTO":
+                                estado_fill = PatternFill(start_color="c8e6c9", end_color="c8e6c9", fill_type="solid")
+                            elif estado == "NO DEVUELTO":
+                                estado_fill = PatternFill(start_color="ffcdd2", end_color="ffcdd2", fill_type="solid")
+                            else:
+                                estado_fill = PatternFill(start_color="bbdefb", end_color="bbdefb", fill_type="solid")
+                            
+                            # Celda de Usuario
+                            cell = ws.cell(row=row_idx, column=1)
+                            cell.value = item.get("nombre_usuario", "")
+                            cell.fill = current_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="left", vertical="center")
+                            
+                            # Celda de Libro
+                            cell = ws.cell(row=row_idx, column=2)
+                            cell.value = item.get("libro_titulo", "")
+                            cell.fill = current_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                            
+                            # Celda de Préstamo
+                            cell = ws.cell(row=row_idx, column=3)
+                            cell.value = str(fecha_prestamo)
+                            cell.fill = current_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                            
+                            # Celda de Devolución
+                            cell = ws.cell(row=row_idx, column=4)
+                            cell.value = str(fecha_dev)
+                            cell.fill = current_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                            
+                            # Celda de Estado
+                            cell = ws.cell(row=row_idx, column=5)
+                            cell.value = estado
+                            cell.fill = estado_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                            cell.font = Font(bold=True, size=10)
+                            
+                            # Celda de Observaciones
+                            cell = ws.cell(row=row_idx, column=6)
+                            cell.value = observaciones
+                            cell.fill = current_fill
+                            cell.border = thin_border
+                            cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                        
+                        # Ajustar ancho y altura de columnas
+                        ws.column_dimensions['A'].width = 25
+                        ws.column_dimensions['B'].width = 35
+                        ws.column_dimensions['C'].width = 15
+                        ws.column_dimensions['D'].width = 15
+                        ws.column_dimensions['E'].width = 12
+                        ws.column_dimensions['F'].width = 40
+                        ws.row_dimensions[1].height = 25
+                        
+                        # Guardar en temp
+                        nombre = f"historial_{identificacion}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        out_path = os.path.join(tempfile.gettempdir(), nombre)
+                        
+                        wb.save(out_path)
+                        snack(f"✅ Excel generado: {nombre}")
+                        
+                        # Abrir archivo
+                        if sys.platform == 'win32':
+                            os.startfile(out_path)
+                        elif sys.platform == 'darwin':
+                            subprocess.Popen(['open', out_path])
+                        else:
+                            subprocess.Popen(['xdg-open', out_path])
+                        
+                    except Exception as ex:
+                        import traceback
+                        print(traceback.format_exc())
+                        snack(f"❌ Error al exportar: {str(ex)}", ok=False)
                 
                 dlg_historial = ft.AlertDialog(
                     modal=True,
@@ -859,24 +1000,25 @@ class ReservasPage(ft.Column):
                                 height=260,
                             ),
                         ], spacing=12),
-                        width=600,
-                        height=380,
+                        width=700,
+                        height=420,
                     ),
                     actions=[
                         ft.ElevatedButton(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.DOWNLOAD_ROUNDED, size=18),
-                                ft.Text("Descargar")
-                            ], spacing=8),
+                            "Descargar",
+                            icon=ft.Icons.DOWNLOAD_ROUNDED,
                             on_click=exportar_excel,
                             bgcolor="#2e7d32",
                             color=ft.Colors.WHITE,
+                            width=140,
                         ),
                         ft.TextButton(
                             "Cerrar",
-                            on_click=lambda e: setattr(dlg_historial, "open", False) or self._page.update()
+                            on_click=lambda e: setattr(dlg_historial, "open", False) or self._page.update(),
+                            width=100,
                         ),
                     ],
+                    actions_alignment=ft.MainAxisAlignment.END,
                 )
                 
                 self._page.overlay.append(dlg_historial)
@@ -1144,8 +1286,8 @@ class ReservasPage(ft.Column):
             actualizar_dropdown_libros(libros_activos)
             actualizar_dropdown_usuarios(usuarios_activos)
             
-            # Calcular fecha sugerida (20 días desde hoy)
-            fecha_sugerida = (datetime.now() + timedelta(days=20)).strftime("%Y-%m-%d")
+            # Calcular fecha sugerida (20 días desde hoy) en formato dd-mm-yyyy
+            fecha_sugerida = (datetime.now() + timedelta(days=20)).strftime("%d-%m-%Y")
             
             fecha_dev_input = ft.TextField(
                 label="Fecha de Devolución Esperada *",
@@ -1158,7 +1300,7 @@ class ReservasPage(ft.Column):
 
             def on_date_change(e):
                 if e.control.value:
-                    fecha_dev_input.value = e.control.value.strftime("%Y-%m-%d")
+                    fecha_dev_input.value = e.control.value.strftime("%d-%m-%Y")
                     self._page.update()
 
             date_picker = ft.DatePicker(
@@ -1197,20 +1339,22 @@ class ReservasPage(ft.Column):
                     return
                 
                 try:
-                    # Validar formato de fecha
-                    datetime.strptime(fecha_dev_input.value.strip(), "%Y-%m-%d")
+                    # Convertir fecha de dd-mm-yyyy a yyyy-mm-dd
+                    fecha_display = fecha_dev_input.value.strip()
+                    fecha_obj = datetime.strptime(fecha_display, "%d-%m-%Y")
+                    fecha_db = fecha_obj.strftime("%Y-%m-%d")
                     
                     self._db.crear_prestamo(
                         int(libros_seleccionados[0]["id"]),
                         usuarios_seleccionados[0]["id"].strip(),
-                        fecha_dev_input.value.strip()
+                        fecha_db
                     )
                     snack("✅ Préstamo creado exitosamente")
                     dlg.open = False
                     self._page.update()
                     cargar_reservas()
                 except ValueError:
-                    snack("❌ Formato de fecha inválido. Use YYYY-MM-DD", ok=False)
+                    snack("❌ Formato de fecha inválido", ok=False)
                 except Exception as ex:
                     import traceback
                     print(traceback.format_exc())

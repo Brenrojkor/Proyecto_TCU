@@ -15,6 +15,8 @@ import math
 class HomePage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self._db = Database()
@@ -936,18 +938,52 @@ class HomePage(ft.Column):
 
             # Construir encabezados legibles
             def human(k: str) -> str:
-                return k.replace("_", " ").title()
+                text = k.replace("_", " ").title()
+                # Cambiar anio/año de publicacion a Año De Publicación
+                if "anio" in text.lower() and "publicacion" in text.lower():
+                    text = "Año De Publicación"
+                return text
 
             headers = [human(k) for k in keys]
-            # Asegurar que la columna de categoría use exactamente 'categoria'
+            # Asegurar que la columna de categoría use exactamente 'Categoria'
             for idx, k in enumerate(keys):
                 if str(k).lower() in ("categoria", "id_categoria", "idcategoria"):
-                    headers[idx] = "categoria"
+                    headers[idx] = "Categoria"
 
             wb = Workbook()
             ws = wb.active
             ws.title = "Todos"
-            ws.append(headers)
+            
+            # Importar estilos
+            from openpyxl.styles import Border, Side, PatternFill, Font, Alignment
+            
+            # Estilos
+            header_fill = PatternFill(start_color="1976d2", end_color="1976d2", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+            # Bordes
+            thin_border = Border(
+                left=Side(style='thin', color="cccccc"),
+                right=Side(style='thin', color="cccccc"),
+                top=Side(style='thin', color="cccccc"),
+                bottom=Side(style='thin', color="cccccc")
+            )
+            
+            # Rellenos alternados
+            row_fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+            row_fill_light = PatternFill(start_color="f5f7fa", end_color="f5f7fa", fill_type="solid")
+            
+            # Agregar encabezados con estilo
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_alignment
+                cell.border = thin_border
+            
+            ws.row_dimensions[1].height = 25
 
             import json
 
@@ -989,9 +1025,22 @@ class HomePage(ft.Column):
                     return v.isoformat()
                 return str(v)
 
-            for libro in libros:
-                row = [serialize(libro.get(k), k) if isinstance(libro, dict) else "" for k in keys]
-                ws.append(row)
+            for row_idx, libro in enumerate(libros, 2):
+                row_data = [serialize(libro.get(k), k) if isinstance(libro, dict) else "" for k in keys]
+                
+                # Determinar relleno (alternado)
+                current_fill = row_fill_light if row_idx % 2 == 0 else row_fill_white
+                
+                for col_idx, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.value = value
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+            # Ajustar ancho de columnas automáticamente
+            for col_idx, header in enumerate(headers, 1):
+                ws.column_dimensions[chr(64 + col_idx)].width = min(40, max(12, len(str(header)) + 2))
 
             nombre = f"libros_todos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             out_path = os.path.join(tempfile.gettempdir(), nombre)
@@ -1464,7 +1513,7 @@ class HomePage(ft.Column):
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.crear_libro,
         )
@@ -1522,7 +1571,7 @@ class HomePage(ft.Column):
             ft.Divider(height=8, color="transparent"),
             form_column,
             ft.Divider(height=6, color="transparent"),
-            ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_libro), self.btn_guardar], alignment=ft.MainAxisAlignment.END, spacing=12)
+            ft.Row([ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo_libro, bgcolor="#757575", color=ft.Colors.WHITE), self.btn_guardar], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)
 
         self.dialog = ft.AlertDialog(
@@ -1680,7 +1729,7 @@ class HomePage(ft.Column):
 
         self.btn_guardar = ft.ElevatedButton(
             content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-            bgcolor="#0b495c",
+            bgcolor="#1976d2",
             color=ft.Colors.WHITE,
             on_click=self.guardar_edicion_libro,
         )
@@ -1734,7 +1783,7 @@ class HomePage(ft.Column):
             form_column,
             ft.Divider(height=6, color="transparent"),
             ft.Row([
-                ft.TextButton("Cancelar", on_click=self.cerrar_dialogo_libro),
+                ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo_libro, bgcolor="#757575", color=ft.Colors.WHITE),
                 self.btn_guardar
             ], alignment=ft.MainAxisAlignment.END, spacing=12)
         ], spacing=10, scroll=ft.ScrollMode.AUTO)

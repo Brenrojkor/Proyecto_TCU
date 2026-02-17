@@ -6,6 +6,8 @@ import math
 class SolicitudPage(ft.Column):
 	def __init__(self, navigate, page: ft.Page):
 		super().__init__()
+		self.expand = True
+		self.scroll = ft.ScrollMode.AUTO
 		self._page = page
 		self.navigate = navigate
 		self.db = Database()
@@ -384,10 +386,10 @@ class SolicitudPage(ft.Column):
 		)
 		acciones = ft.Row(
 			[
-				ft.TextButton("Cancelar", on_click=self.cerrar_dialogo),
+				ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo, bgcolor="#757575", color=ft.Colors.WHITE),
 				ft.ElevatedButton(
 					content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8),
-					bgcolor="#0b495c",
+					bgcolor="#1976d2",
 					color=ft.Colors.WHITE,
 					on_click=self.guardar_solicitud,
 				),
@@ -562,7 +564,7 @@ class SolicitudPage(ft.Column):
 			title=ft.Text("Eliminar solicitud"),
 			content=ft.Text("¿Seguro que querés eliminar esta solicitud?"),
 			actions=[
-				ft.TextButton("Cancelar", on_click=lambda e: self._cerrar_dialogo_confirmacion(dlg)),
+				ft.ElevatedButton("Cancelar", on_click=lambda e: self._cerrar_dialogo_confirmacion(dlg), bgcolor="#757575", color=ft.Colors.WHITE),
 				ft.ElevatedButton("Eliminar", bgcolor=ft.Colors.RED, color=ft.Colors.WHITE, on_click=eliminar),
 			],
 		)

@@ -5,6 +5,8 @@ import math
 class AutoresPage(ft.Column):
     def __init__(self, navigate, page: ft.Page):
         super().__init__()
+        self.expand = True
+        self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self.db = Database()
@@ -236,14 +238,21 @@ class AutoresPage(ft.Column):
 
     def action_button(self, icon, bgcolor, tooltip, on_click=None):
         return ft.Container(
-            width=36,
-            height=36,
+            height=34,
+            padding=ft.padding.only(left=10, right=10, top=2, bottom=2),
             bgcolor=bgcolor,
-            border_radius=6,
+            border_radius=4,
             tooltip=tooltip,
             on_click=on_click,
             alignment=ft.Alignment.CENTER,
-            content=ft.Icon(icon, color=ft.Colors.WHITE, size=18),
+            content=ft.Row(
+                [
+                    ft.Icon(icon, color=ft.Colors.WHITE, size=16),
+                    ft.Text(tooltip, color=ft.Colors.WHITE, size=12),
+                ],
+                spacing=4,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
 
 
@@ -299,7 +308,7 @@ class AutoresPage(ft.Column):
 
                     ft.Divider(height=6, color="transparent"),
 
-                    ft.Row([ft.TextButton("Cancelar", on_click=self.cerrar_dialogo), ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8), bgcolor="#0b495c", color=ft.Colors.WHITE, on_click=self.guardar_autor)], alignment=ft.MainAxisAlignment.END, spacing=10),
+                    ft.Row([ft.ElevatedButton("Cancelar", on_click=self.cerrar_dialogo, bgcolor="#757575", color=ft.Colors.WHITE), ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK), ft.Text("Guardar")], spacing=8), bgcolor="#1976d2", color=ft.Colors.WHITE, on_click=self.guardar_autor)], alignment=ft.MainAxisAlignment.END, spacing=10),
                 ],
                 spacing=8,
             ),
@@ -357,11 +366,6 @@ class AutoresPage(ft.Column):
                                         ft.Colors.ORANGE,
                                         "Editar",
                                         lambda e, a=autor: self.abrir_dialogo_editar(a),
-                                    ),
-                                    self.action_button(
-                                        ft.Icons.BLOCK,
-                                        ft.Colors.RED,
-                                        "Desactivar",
                                     ),
                                 ],
                                 spacing=10,

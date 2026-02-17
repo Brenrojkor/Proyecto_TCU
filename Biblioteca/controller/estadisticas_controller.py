@@ -55,6 +55,120 @@ class EstadisticasController:
         results = cursor.fetchall()
         return [{"fecha": f"Libro {row[0]}", "cantidad": 1} for row in results]
     
+    # ================================
+    # NUEVOS MÉTODOS: Préstamos por período
+    # ================================
+    def get_prestamos_por_dia(self, fecha=None):
+        """Obtiene préstamos por día actual o fecha especificada"""
+        if fecha is None:
+            fecha = datetime.now().date()
+        
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT CAST(fecha_prestamo AS DATE) as fecha,
+                   COUNT(*) as cantidad
+            FROM Prestamos
+            WHERE CAST(fecha_prestamo AS DATE) = ?
+            GROUP BY CAST(fecha_prestamo AS DATE)
+        """, (fecha,))
+        
+        results = cursor.fetchall()
+        return [{"fecha": row[0], "cantidad": row[1]} for row in results]
+    
+    def get_prestamos_por_semana_reporte(self, semana=None, año=None):
+        """Obtiene préstamos por semana del año actual o especificado"""
+        if año is None:
+            año = datetime.now().year
+        
+        if semana is None:
+            # Calcular semana actual
+            hoy = datetime.now().date()
+            semana = hoy.isocalendar()[1]
+        
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT DATEPART(week, fecha_prestamo) as semana,
+                   CAST(fecha_prestamo AS DATE) as fecha,
+                   COUNT(*) as cantidad
+            FROM Prestamos
+            WHERE YEAR(fecha_prestamo) = ? AND DATEPART(week, fecha_prestamo) = ?
+            GROUP BY DATEPART(week, fecha_prestamo), CAST(fecha_prestamo AS DATE)
+            ORDER BY CAST(fecha_prestamo AS DATE)
+        """, (año, semana))
+        
+        results = cursor.fetchall()
+        return [{"semana": row[0], "fecha": row[1], "cantidad": row[2]} for row in results]
+    
+    def get_prestamos_semanas_del_año(self, año=None):
+        """Obtiene todos los préstamos agrupados por semana del año"""
+        if año is None:
+            año = datetime.now().year
+        
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT DATEPART(week, fecha_prestamo) as semana,
+                   COUNT(*) as cantidad
+            FROM Prestamos
+            WHERE YEAR(fecha_prestamo) = ?
+            GROUP BY DATEPART(week, fecha_prestamo)
+            ORDER BY DATEPART(week, fecha_prestamo)
+        """, (año,))
+        
+        results = cursor.fetchall()
+        return [{"semana": row[0], "cantidad": row[1]} for row in results]
+    
+    def get_prestamos_por_mes_reporte(self, año=None):
+        """Obtiene préstamos por mes del año actual o especificado"""
+        if año is None:
+            año = datetime.now().year
+        
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT MONTH(fecha_prestamo) as mes,
+                   COUNT(*) as cantidad
+            FROM Prestamos
+            WHERE YEAR(fecha_prestamo) = ?
+            GROUP BY MONTH(fecha_prestamo)
+            ORDER BY MONTH(fecha_prestamo)
+        """, (año,))
+        
+        results = cursor.fetchall()
+        meses_dict = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 
+                     7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
+        return [{"mes": row[0], "mes_nombre": meses_dict.get(row[0], ""), "cantidad": row[1]} for row in results]
+    
+    def get_dias_del_mes(self, año=None, mes=None):
+        """Obtiene préstamos por día del mes especificado"""
+        if año is None:
+            año = datetime.now().year
+        if mes is None:
+            mes = datetime.now().month
+        
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT DAY(fecha_prestamo) as dia,
+                   CAST(fecha_prestamo AS DATE) as fecha,
+                   COUNT(*) as cantidad
+            FROM Prestamos
+            WHERE YEAR(fecha_prestamo) = ? AND MONTH(fecha_prestamo) = ?
+            GROUP BY DAY(fecha_prestamo), CAST(fecha_prestamo AS DATE)
+            ORDER BY DAY(fecha_prestamo)
+        """, (año, mes))
+        
+        results = cursor.fetchall()
+        return [{"dia": row[0], "fecha": row[1], "cantidad": row[2]} for row in results]
+    
+    def get_años_con_prestamos(self):
+        """Obtiene todos los años que tienen préstamos registrados"""
+        cursor = self.db.cursor
+        cursor.execute("""
+            SELECT DISTINCT YEAR(fecha_prestamo) as año
+            FROM Prestamos
+            WHERE fecha_prestamo IS NOT NULL
+            ORDER BY YEAR(fecha_prestamo) DESC
+        """)
+        return [row[0] for row in cursor.fetchall()]
+    
     def get_libros_filtrados(self, filtro_tipo, filtro_valor):
         cursor = self.db.cursor
         

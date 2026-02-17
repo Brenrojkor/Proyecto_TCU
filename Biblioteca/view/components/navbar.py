@@ -144,7 +144,7 @@ def NavBar(page, navigate):
                     nav_item("Inicio", "/"),
                     libros_menu,
                     nav_item("Contactos", "/contactos"),
-                    nav_item("Reservas", "/reservas"),
+                    nav_item("Préstamos", "/reservas"),
                     nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),
 
