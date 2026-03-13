@@ -49,11 +49,21 @@ class Router:
     def navigate(self, route: str):
         self.container.controls.clear()
 
+        # Extraer query parameters de la URL (ej: /contactos?page=2)
+        query_params = {}
+        if "?" in route:
+            route_base, query_string = route.split("?", 1)
+            for param in query_string.split("&"):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    query_params[key.strip()] = value.strip()
+        else:
+            route_base = route
+
         # Extraer parámetro si existe (ej: /libro/123 -> /libro, 123)
-        route_base = route
         param = None
         
-        parts = route.rstrip("/").split("/")
+        parts = route_base.rstrip("/").split("/")
         if len(parts) > 2 and parts[-1].isdigit():
             # Detectar si hay parámetro numérico
             param = int(parts[-1])
@@ -61,9 +71,15 @@ class Router:
 
         view_class = self.routes.get(route_base, self.not_found)
         
-        # Pasar parámetro si existe
+        # Pasar parámetros según la ruta
         if param is not None and route_base in ["/libro", "/editlib", "/detalleusuario"]:
-            self.container.controls.append(view_class(self.navigate, self.page, param))
+            if query_params:
+                self.container.controls.append(view_class(self.navigate, self.page, param, query_params))
+            else:
+                self.container.controls.append(view_class(self.navigate, self.page, param))
+        elif route_base in ["/", "/contactos", "/categorias", "/usuarios", "/autores", "/solicitud"] and query_params:
+            # Pasar query_params para mantener estado de paginación
+            self.container.controls.append(view_class(self.navigate, self.page, query_params))
         else:
             self.container.controls.append(view_class(self.navigate, self.page))
 

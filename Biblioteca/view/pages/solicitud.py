@@ -4,7 +4,7 @@ import math
 
 
 class SolicitudPage(ft.Column):
-	def __init__(self, navigate, page: ft.Page):
+	def __init__(self, navigate, page: ft.Page, query_params: dict = None):
 		super().__init__()
 		self.expand = True
 		self.scroll = ft.ScrollMode.AUTO
@@ -16,7 +16,16 @@ class SolicitudPage(ft.Column):
 		self._solicitudes_cache = []
 		self._solicitudes_filtradas = []
 		self._page_size = 5
-		self._pagina_actual = 1
+		
+		# Restaurar página desde query params si existen
+		initial_page = 1
+		if query_params and isinstance(query_params, dict) and "page" in query_params:
+			try:
+				initial_page = max(1, int(query_params["page"]))
+			except (ValueError, TypeError):
+				initial_page = 1
+		
+		self._pagina_actual = initial_page
 
 		# Botones principales (estilo igual a reservas)
 		self.btn_crear = ft.ElevatedButton(

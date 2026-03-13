@@ -124,26 +124,28 @@ class ReservasPage(ft.Column):
                 if not valor:
                     return ""
                 if isinstance(valor, datetime):
-                    return valor.strftime("%d-%m-%Y")
+                    return valor.strftime("%d-%m-%Y %H:%M")
                 if hasattr(valor, "strftime"):
                     try:
-                        return valor.strftime("%d-%m-%Y")
+                        return valor.strftime("%d-%m-%Y %H:%M")
                     except Exception:
                         pass
                 s = str(valor).strip()
                 formatos = [
-                    "%Y-%m-%d",
                     "%Y-%m-%d %H:%M:%S",
-                    "%d/%m/%Y",
+                    "%Y-%m-%d %H:%M",
+                    "%Y-%m-%d",
                     "%d/%m/%Y %H:%M:%S",
+                    "%d/%m/%Y %H:%M",
+                    "%d/%m/%Y",
                 ]
                 for fmt in formatos:
                     try:
-                        return datetime.strptime(s, fmt).strftime("%d-%m-%Y")
+                        return datetime.strptime(s, fmt).strftime("%d-%m-%Y %H:%M")
                     except Exception:
                         pass
                 try:
-                    return datetime.fromisoformat(s).strftime("%d-%m-%Y")
+                    return datetime.fromisoformat(s).strftime("%d-%m-%Y %H:%M")
                 except Exception:
                     return s
 
@@ -171,7 +173,7 @@ class ReservasPage(ft.Column):
             if estado == "PRESTADO" and fecha_dev:
                 try:
                     if isinstance(fecha_dev, str):
-                        fecha_dev = datetime.strptime(fecha_dev, "%Y-%m-%d").date()
+                        fecha_dev = datetime.strptime(fecha_dev, "%Y-%m-%d %H:%M").date()
                     elif hasattr(fecha_dev, 'date'):
                         fecha_dev = fecha_dev.date()
                     
@@ -303,11 +305,11 @@ class ReservasPage(ft.Column):
                     # Formatear fechas
                     fecha_prestamo = r.get("fecha_prestamo")
                     if hasattr(fecha_prestamo, "strftime"):
-                        r["fecha_prestamo"] = fecha_prestamo.strftime("%Y-%m-%d")
+                        r["fecha_prestamo"] = fecha_prestamo.strftime("%Y-%m-%d %H:%M")
 
                     fecha_dev = r.get("fecha_devolucion_real") or r.get("fecha_devolucion_esperada")
                     if hasattr(fecha_dev, "strftime"):
-                        r["fecha_devolucion"] = fecha_dev.strftime("%Y-%m-%d")
+                        r["fecha_devolucion"] = fecha_dev.strftime("%Y-%m-%d %H:%M")
                     else:
                         r["fecha_devolucion"] = fecha_dev or ""
                     
@@ -320,14 +322,14 @@ class ReservasPage(ft.Column):
                             if hasattr(fp, 'date'):
                                 fp_date = fp.date()
                             elif isinstance(fp, str):
-                                fp_date = datetime.strptime(fp, "%Y-%m-%d").date()
+                                fp_date = datetime.strptime(fp, "%Y-%m-%d %H:%M").date()
                             else:
                                 fp_date = None
 
                             if hasattr(fr, 'date'):
                                 fr_date = fr.date()
                             elif isinstance(fr, str):
-                                fr_date = datetime.strptime(fr, "%Y-%m-%d").date()
+                                fr_date = datetime.strptime(fr, "%Y-%m-%d %H:%M").date()
                             else:
                                 fr_date = None
 
@@ -341,7 +343,7 @@ class ReservasPage(ft.Column):
                         try:
                             fecha_esperada = r["fecha_devolucion_esperada"]
                             if isinstance(fecha_esperada, str):
-                                fecha_esperada = datetime.strptime(fecha_esperada, "%Y-%m-%d").date()
+                                fecha_esperada = datetime.strptime(fecha_esperada, "%Y-%m-%d %H:%M").date()
                             elif hasattr(fecha_esperada, 'date'):
                                 fecha_esperada = fecha_esperada.date()
                             
@@ -1497,6 +1499,277 @@ class ReservasPage(ft.Column):
         # =========================
         # Botones de acción
         # =========================
+        # =========================
+        # Botones de acción
+        # =========================
+        def exportar_excel_prestamos(e):
+            from datetime import datetime
+            
+            # Crear dropdowns para mes y año
+            mes_actual = datetime.now().month
+            ano_actual = datetime.now().year
+            
+            mes_dd = ft.Dropdown(
+                label="Mes",
+                value=str(mes_actual),
+                width=150,
+                options=[
+                    ft.dropdown.Option(str(i), f"{i:02d}") for i in range(1, 13)
+                ],
+            )
+            
+            ano_dd = ft.Dropdown(
+                label="Año",
+                value=str(ano_actual),
+                width=150,
+                options=[
+                    ft.dropdown.Option(str(ano_actual - i), str(ano_actual - i)) for i in range(5)
+                ],
+            )
+            
+            # Checkbox para exportar todos
+            exportar_todos_cb = ft.Checkbox(
+                label="Exportar todos los préstamos",
+                value=False,
+            )
+            
+            def toggle_filtros(e):
+                enabled = not exportar_todos_cb.value
+                mes_dd.disabled = not enabled
+                ano_dd.disabled = not enabled
+                self._page.update()
+            
+            exportar_todos_cb.on_change = toggle_filtros
+            
+            def confirmar_exportacion(ev):
+                try:
+                    if exportar_todos_cb.value:
+                        # Exportar todos los datos
+                        datos_filtrados = self._reservas_cache
+                        mes_seleccionado = None
+                        ano_seleccionado = None
+                    else:
+                        # Filtrar por mes y año
+                        mes_seleccionado = int(mes_dd.value)
+                        ano_seleccionado = int(ano_dd.value)
+                        
+                        datos_filtrados = []
+                        for item in self._reservas_cache:
+                            fecha_prestamo = item.get("fecha_prestamo", "")
+                            if hasattr(fecha_prestamo, 'strftime'):
+                                fecha = fecha_prestamo
+                            else:
+                                try:
+                                    fecha = datetime.strptime(str(fecha_prestamo), "%Y-%m-%d %H:%M")
+                                except:
+                                    continue
+                            
+                            if fecha.month == mes_seleccionado and fecha.year == ano_seleccionado:
+                                datos_filtrados.append(item)
+                        
+                        if not datos_filtrados:
+                            snack(f"ℹ️ No hay préstamos para {mes_seleccionado:02d}/{ano_seleccionado}", ok=False)
+                            return
+                    
+                    # Exportar los datos
+                    exportar_datos_excel(datos_filtrados, mes_seleccionado, ano_seleccionado)
+                    dlg_export.open = False
+                    self._page.update()
+                    
+                except Exception as ex:
+                    import traceback
+                    print(traceback.format_exc())
+                    snack(f"❌ Error: {str(ex)}", ok=False)
+            
+            dlg_export = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.DOWNLOAD_ROUNDED, color="#2e7d32", size=28),
+                    ft.Text("Exportar Préstamos a Excel", size=20, weight=ft.FontWeight.BOLD, color="#263238")
+                ]),
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Text("Configure las opciones de exportación:", size=14, color="#546e7a"),
+                        exportar_todos_cb,
+                        ft.Row([
+                            mes_dd,
+                            ano_dd,
+                        ], spacing=20, alignment=ft.MainAxisAlignment.CENTER),
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.INFO_ROUNDED, color="#1976d2", size=16),
+                                ft.Text("Seleccione un período o marque 'Exportar todos' para incluir todos los préstamos", size=12, color="#757575"),
+                            ]),
+                            bgcolor="#e3f2fd",
+                            padding=10,
+                            border_radius=6,
+                        ),
+                    ], spacing=15, tight=True),
+                    width=450,
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg_export, "open", False) or self._page.update()),
+                    ft.ElevatedButton(
+                        "Exportar",
+                        icon=ft.Icons.DOWNLOAD_ROUNDED,
+                        on_click=confirmar_exportacion,
+                        bgcolor="#2e7d32",
+                        color=ft.Colors.WHITE,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            
+            self._page.overlay.append(dlg_export)
+            dlg_export.open = True
+            self._page.update()
+        
+        def exportar_datos_excel(datos, mes, ano):
+            try:
+                from openpyxl import Workbook
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                from datetime import datetime
+                import tempfile
+                import os
+                import subprocess
+                import sys
+                
+                # Crear workbook
+                wb = Workbook()
+                ws = wb.active
+                if mes and ano:
+                    ws.title = f"Préstamos_{mes:02d}_{ano}"
+                else:
+                    ws.title = "Préstamos_Todos"
+                
+                # Estilos
+                header_fill = PatternFill(start_color="1976d2", end_color="1976d2", fill_type="solid")
+                header_font = Font(bold=True, color="FFFFFF", size=12)
+                header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                
+                # Bordes
+                thin_border = Border(
+                    left=Side(style='thin', color="cccccc"),
+                    right=Side(style='thin', color="cccccc"),
+                    top=Side(style='thin', color="cccccc"),
+                    bottom=Side(style='thin', color="cccccc")
+                )
+                
+                # Rellenos alternados para filas
+                row_fill_white = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+                row_fill_light = PatternFill(start_color="f5f7fa", end_color="f5f7fa", fill_type="solid")
+                
+                headers = ['Libro', 'Usuario', 'Cédula', 'Préstamo', 'Devolución', 'Estado']
+                for col, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col)
+                    cell.value = header
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = header_alignment
+                    cell.border = thin_border
+                
+                # Agregar datos
+                for row_idx, item in enumerate(datos, 2):
+                    estado = item.get("estado", "PRESTADO")
+                    
+                    fecha_prestamo = item.get("fecha_prestamo", "")
+                    if hasattr(fecha_prestamo, 'strftime'):
+                        fecha_prestamo = fecha_prestamo.strftime("%Y-%m-%d %H:%M")
+                    
+                    fecha_dev = item.get("fecha_devolucion_real") or item.get("fecha_devolucion_esperada", "")
+                    if hasattr(fecha_dev, 'strftime'):
+                        fecha_dev = fecha_dev.strftime("%Y-%m-%d %H:%M")
+                    elif not fecha_dev:
+                        fecha_dev = "Pendiente"
+                    
+                    # Determinar relleno (alternado)
+                    current_fill = row_fill_light if row_idx % 2 == 0 else row_fill_white
+                    
+                    # Determinar color de estado
+                    if estado == "DEVUELTO":
+                        estado_fill = PatternFill(start_color="c8e6c9", end_color="c8e6c9", fill_type="solid")
+                    elif estado == "NO DEVUELTO":
+                        estado_fill = PatternFill(start_color="ffcdd2", end_color="ffcdd2", fill_type="solid")
+                    elif estado == "A SALA":
+                        estado_fill = PatternFill(start_color="e1bee7", end_color="e1bee7", fill_type="solid")
+                    else:
+                        estado_fill = PatternFill(start_color="bbdefb", end_color="bbdefb", fill_type="solid")
+                    
+                    # Celda de Libro
+                    cell = ws.cell(row=row_idx, column=1)
+                    cell.value = item.get("libro_titulo", "")
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                    
+                    # Celda de Usuario
+                    cell = ws.cell(row=row_idx, column=2)
+                    cell.value = item.get("nombre_usuario", "")
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+                    
+                    # Celda de Cédula
+                    cell = ws.cell(row=row_idx, column=3)
+                    cell.value = item.get("identificacion_usuario", "")
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    # Celda de Préstamo
+                    cell = ws.cell(row=row_idx, column=4)
+                    cell.value = str(fecha_prestamo)
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    # Celda de Devolución
+                    cell = ws.cell(row=row_idx, column=5)
+                    cell.value = str(fecha_dev)
+                    cell.fill = current_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    # Celda de Estado
+                    cell = ws.cell(row=row_idx, column=6)
+                    cell.value = estado
+                    cell.fill = estado_fill
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    cell.font = Font(bold=True, size=10)
+                
+                # Ajustar ancho y altura de columnas
+                ws.column_dimensions['A'].width = 35
+                ws.column_dimensions['B'].width = 25
+                ws.column_dimensions['C'].width = 15
+                ws.column_dimensions['D'].width = 18
+                ws.column_dimensions['E'].width = 18
+                ws.column_dimensions['F'].width = 12
+                ws.row_dimensions[1].height = 25
+                
+                # Guardar en temp
+                if mes and ano:
+                    nombre = f"prestamos_{mes:02d}_{ano}_{datetime.now().strftime('%H%M%S')}.xlsx"
+                else:
+                    nombre = f"prestamos_todos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                out_path = os.path.join(tempfile.gettempdir(), nombre)
+                
+                wb.save(out_path)
+                snack(f"✅ Excel generado: {nombre} ({len(datos)} registros)")
+                
+                # Abrir archivo
+                if sys.platform == 'win32':
+                    os.startfile(out_path)
+                elif sys.platform == 'darwin':
+                    subprocess.Popen(['open', out_path])
+                else:
+                    subprocess.Popen(['xdg-open', out_path])
+                
+            except Exception as ex:
+                import traceback
+                print(traceback.format_exc())
+                snack(f"❌ Error al exportar: {str(ex)}", ok=False)
+        
         btn_nuevo = ft.ElevatedButton(
             content=ft.Row([
                 ft.Icon(ft.Icons.ADD_ROUNDED, size=20),
@@ -1509,6 +1782,17 @@ class ReservasPage(ft.Column):
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=10),
                 elevation=2,
+            ),
+        )
+        
+        btn_exportar = ft.ElevatedButton(
+            content=ft.Row([ft.Icon(ft.Icons.DOWNLOAD), ft.Text("Descargar Excel")], spacing=8),
+            on_click=exportar_excel_prestamos,
+            bgcolor="#1976d2",
+            color=ft.Colors.WHITE,
+            height=44,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
             ),
         )
         
@@ -1604,6 +1888,7 @@ class ReservasPage(ft.Column):
                 [
                     self.search_input,
                     self.estado_dd,
+                    btn_exportar,
                 ],
                 alignment=ft.MainAxisAlignment.START,
                 spacing=15,

@@ -4,13 +4,21 @@ import math
 
 
 class ContactosPage(ft.Column):
-    def __init__(self, navigate, page: ft.Page):
+    def __init__(self, navigate, page: ft.Page, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self._db = Database()
+        
+        # Restaurar página desde query params si existen
+        initial_page = 1
+        if query_params and isinstance(query_params, dict) and "page" in query_params:
+            try:
+                initial_page = max(1, int(query_params["page"]))
+            except (ValueError, TypeError):
+                initial_page = 1
 
         # =========================
         # Métricas
@@ -93,7 +101,7 @@ class ContactosPage(ft.Column):
         self._contactos_cache = []
         self._contactos_filtrados = []
         self._page_size = 5
-        self._pagina_actual = 1
+        self._pagina_actual = initial_page
 
         # =========================
         # Dialog form (Editar)
@@ -280,7 +288,14 @@ class ContactosPage(ft.Column):
             self.total_contactos.value = str(len(self._contactos_cache))
             aplicar_filtros(reset_pagina=True)
 
+        def recargar_datos_sin_reset():
+            """Recarga los datos manteniendo la página actual (para después de editar/crear)"""
+            self._contactos_cache = self._db.get_contactos()
+            self.total_contactos.value = str(len(self._contactos_cache))
+            aplicar_filtros(reset_pagina=False)
+
         self._cargar_contactos = cargar_contactos
+        self._recargar_datos = recargar_datos_sin_reset
 
         # Eventos
         def on_search_change(e):
@@ -596,8 +611,8 @@ class ContactosPage(ft.Column):
             self._page.snack_bar = ft.SnackBar(ft.Text("✅ Contacto guardado correctamente"), bgcolor=ft.Colors.GREEN_500)
             self._page.snack_bar.open = True
             self.cerrar_dialogo_contacto()
-            if hasattr(self, "_cargar_contactos"):
-                self._cargar_contactos()
+            if hasattr(self, "_recargar_datos"):
+                self._recargar_datos()
 
         except Exception as ex:
             self._page.snack_bar = ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED_500)
@@ -768,8 +783,8 @@ class ContactosPage(ft.Column):
             self._page.snack_bar = ft.SnackBar(ft.Text("✅ Contacto actualizado"), bgcolor=ft.Colors.GREEN_500)
             self._page.snack_bar.open = True
             self.cerrar_dialogo_editar_contacto()
-            if hasattr(self, "_cargar_contactos"):
-                self._cargar_contactos()
+            if hasattr(self, "_recargar_datos"):
+                self._recargar_datos()
             print("[EDIT] Contacto actualizado completamente")
 
         except Exception as ex:

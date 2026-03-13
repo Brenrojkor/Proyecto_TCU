@@ -13,7 +13,7 @@ import math
 
 
 class HomePage(ft.Column):
-    def __init__(self, navigate, page: ft.Page):
+    def __init__(self, navigate, page: ft.Page, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
@@ -22,7 +22,16 @@ class HomePage(ft.Column):
         self._db = Database()
         self._estado_actual = "TODOS"
         self._page_size = 5
-        self._pagina_actual = 1
+        
+        # Restaurar página desde query params si existen
+        initial_page = 1
+        if query_params and isinstance(query_params, dict) and "page" in query_params:
+            try:
+                initial_page = max(1, int(query_params["page"]))
+            except (ValueError, TypeError):
+                initial_page = 1
+        
+        self._pagina_actual = initial_page
 
         # =========================
         # Helpers
@@ -293,7 +302,29 @@ class HomePage(ft.Column):
                 pass
             aplicar_filtros(reset_pagina=True)
 
+        def mostrar_libros_sin_reset(e=None):
+            """Recarga los libros manteniendo la página actual (para después de editar/crear)"""
+            libros_table.rows.clear()
+            self._libros_cache = self._db.get_libros()
+            try:
+                actualizar_stats()
+            except Exception:
+                pass
+            aplicar_filtros(reset_pagina=False)
+
         self._mostrar_libros = mostrar_libros
+        self._mostrar_libros_sin_reset = mostrar_libros_sin_reset
+
+        # =========================
+        # Helper para navegar manteniendo página
+        # =========================
+        def navigate_with_page(route: str):
+            """Navega a una ruta manteniendo el query param de página actual"""
+            if self._pagina_actual > 1:
+                route = f"{route}?page={self._pagina_actual}"
+            navigate(route)
+        
+        self._navigate_with_page = navigate_with_page
 
         # =========================
         # Toggle activo/inactivo
@@ -381,7 +412,7 @@ class HomePage(ft.Column):
                             ft.Icons.VISIBILITY,
                             ft.Colors.BLUE,
                             "Detalles",
-                            lambda e, i=id_libro: navigate(f"/libro/{i}"),
+                            lambda e, i=id_libro: self._navigate_with_page(f"/libro/{i}"),
                         ),
                         action_button(
                             ft.Icons.EDIT,
@@ -1858,8 +1889,8 @@ class HomePage(ft.Column):
             self._page.snack_bar = ft.SnackBar(ft.Text("✅ Cambios guardados correctamente"), bgcolor="#1b5e20")
             self._page.snack_bar.open = True
             self.cerrar_dialogo_libro()
-            if hasattr(self, "_mostrar_libros"):
-                self._mostrar_libros()
+            if hasattr(self, "_mostrar_libros_sin_reset"):
+                self._mostrar_libros_sin_reset()
 
         except Exception as ex:
             self._page.snack_bar = ft.SnackBar(ft.Text(f"Error: {str(ex)[:150]}"), bgcolor="#b71c1c")
@@ -1932,8 +1963,8 @@ class HomePage(ft.Column):
             self._page.snack_bar.open = True
             self.cerrar_dialogo_libro()
 
-            if hasattr(self, "_mostrar_libros"):
-                self._mostrar_libros()
+            if hasattr(self, "_mostrar_libros_sin_reset"):
+                self._mostrar_libros_sin_reset()
             
         except Exception as ex:
             print(f"[CREATE] ERROR: {ex}")

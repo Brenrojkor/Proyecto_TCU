@@ -10,7 +10,7 @@ from openpyxl import Workbook
 import math
 
 class UsuariosPage(ft.Column):
-    def __init__(self, navigate, page: ft.Page):
+    def __init__(self, navigate, page: ft.Page, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
@@ -22,7 +22,16 @@ class UsuariosPage(ft.Column):
         self._usuarios_cache = []
         self._usuarios_filtrados = []
         self._page_size = 5
-        self._pagina_actual = 1
+        
+        # Restaurar página desde query params si existen
+        initial_page = 1
+        if query_params and isinstance(query_params, dict) and "page" in query_params:
+            try:
+                initial_page = max(1, int(query_params["page"]))
+            except (ValueError, TypeError):
+                initial_page = 1
+        
+        self._pagina_actual = initial_page
 
         # =========================
         # Métricas

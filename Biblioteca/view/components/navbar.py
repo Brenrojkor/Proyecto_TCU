@@ -145,7 +145,6 @@ def NavBar(page, navigate):
                     libros_menu,
                     nav_item("Contactos", "/contactos"),
                     nav_item("Préstamos", "/reservas"),
-                    nav_item("Estadísticas", "/estadisticas"),
                     nav_item("Usuarios", "/usuarios"),
 
                     ft.Container(

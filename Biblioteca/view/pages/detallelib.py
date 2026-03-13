@@ -6,7 +6,7 @@ import tempfile
 
 
 class DetalleLibroPage(ft.Column):
-    def __init__(self, navigate, page: ft.Page, id_libro: int):
+    def __init__(self, navigate, page: ft.Page, id_libro: int, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
@@ -14,6 +14,7 @@ class DetalleLibroPage(ft.Column):
         self.navigate = navigate
         self._db = Database()
         self.id_libro = id_libro
+        self.query_params = query_params or {}
 
         # =========================
         # Helpers
@@ -93,7 +94,7 @@ class DetalleLibroPage(ft.Column):
                             ft.Text("Libro no encontrado", size=20, weight=ft.FontWeight.BOLD),
                             ft.ElevatedButton(
                                 "Volver",
-                                on_click=lambda e: navigate("/"),
+                                on_click=lambda e: self._navigate_back(),
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -246,7 +247,7 @@ class DetalleLibroPage(ft.Column):
                         ft.Text("Detalles del Libro", size=26, weight=ft.FontWeight.BOLD, color="#263238"),
                     ], spacing=12),
                     ft.Row([
-                        ft.TextButton("Volver", on_click=lambda e: navigate("/")),
+                        ft.TextButton("Volver", on_click=lambda e: self._navigate_back()),
                     ], spacing=8),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -402,3 +403,12 @@ class DetalleLibroPage(ft.Column):
 
         # Asignar controles
         self.controls = [wrapper]
+
+    def _navigate_back(self):
+        """Navega de vuelta a home preservando los query params"""
+        ruta = "/"
+        if self.query_params:
+            params = "&".join([f"{k}={v}" for k, v in self.query_params.items()])
+            if params:
+                ruta = f"{ruta}?{params}"
+        self.navigate(ruta)

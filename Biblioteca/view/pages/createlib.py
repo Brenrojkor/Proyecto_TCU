@@ -3,13 +3,14 @@ from model.database import Database
 
 
 class CrearLibroPage(ft.Column):
-    def __init__(self, navigate, page: ft.Page):
+    def __init__(self, navigate, page: ft.Page, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
         self._page = page
         self.navigate = navigate
         self.db = Database()
+        self.query_params = query_params or {}
 
         # =========================
         # Estilos reutilizados (HomePage)
@@ -115,7 +116,7 @@ class CrearLibroPage(ft.Column):
         # =========================
         self.btn_cancelar = ft.TextButton(
             "Cancelar",
-            on_click=lambda e: navigate("/"),
+            on_click=lambda e: self._navigate_back(),
         )
 
         self.btn_crear = ft.ElevatedButton(
@@ -235,7 +236,7 @@ class CrearLibroPage(ft.Column):
             self._page.snack_bar.open = True
             self._page.update()
 
-            self.navigate("/")
+            self._navigate_back()
 
         except Exception as ex:
             self.mostrar_error(str(ex))
@@ -256,3 +257,12 @@ class CrearLibroPage(ft.Column):
     def cerrar_dialogo(self, dialog: ft.AlertDialog):
         dialog.open = False
         self._page.update()
+
+    def _navigate_back(self):
+        """Navega de vuelta a home preservando los query params"""
+        ruta = "/"
+        if self.query_params:
+            params = "&".join([f"{k}={v}" for k, v in self.query_params.items()])
+            if params:
+                ruta = f"{ruta}?{params}"
+        self.navigate(ruta)

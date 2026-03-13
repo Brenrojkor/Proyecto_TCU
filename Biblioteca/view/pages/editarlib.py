@@ -8,7 +8,7 @@ import subprocess
 
 
 class EditarLibroPage(ft.Column):
-    def __init__(self, navigate, page: ft.Page, id_libro: int):
+    def __init__(self, navigate, page: ft.Page, id_libro: int, query_params: dict = None):
         super().__init__()
         self.expand = True
         self.scroll = ft.ScrollMode.AUTO
@@ -16,6 +16,7 @@ class EditarLibroPage(ft.Column):
         self.navigate = navigate
         self.db = Database()
         self.id_libro = id_libro
+        self.query_params = query_params or {}
 
         # =========================
         # Helpers
@@ -140,7 +141,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
                             ft.Text("Libro no encontrado", size=20, weight=ft.FontWeight.BOLD),
                             ft.ElevatedButton(
                                 "Volver",
-                                on_click=lambda e: navigate("/"),
+                                on_click=lambda e: self._navigate_back(),
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -289,7 +290,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
         # =========================
         self.btn_cancelar = ft.TextButton(
             "Cancelar",
-            on_click=lambda e: navigate("/"),
+            on_click=lambda e: self._navigate_back(),
         )
 
         self.btn_guardar = ft.ElevatedButton(
@@ -422,7 +423,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             self._page.snack_bar.open = True
             self._page.update()
 
-            self.navigate("/")
+            self._navigate_back()
 
         except Exception as ex:
             self.mostrar_error(str(ex))
@@ -443,3 +444,12 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
     def cerrar_dialogo(self, dialog: ft.AlertDialog):
         dialog.open = False
         self._page.update()
+
+    def _navigate_back(self):
+        """Navega de vuelta a home preservando los query params"""
+        ruta = "/"
+        if self.query_params:
+            params = "&".join([f"{k}={v}" for k, v in self.query_params.items()])
+            if params:
+                ruta = f"{ruta}?{params}"
+        self.navigate(ruta)
