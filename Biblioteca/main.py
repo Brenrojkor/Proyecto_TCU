@@ -1,5 +1,6 @@
 import flet as ft
 from controller.router import Router
+from model.database import Database
 from view.components.navbar import NavBar
 
 

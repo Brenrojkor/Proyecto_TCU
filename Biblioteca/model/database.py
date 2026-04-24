@@ -9,6 +9,7 @@ class Database:
         self.password = 'Biblioteca12'
         self.driver = '{ODBC Driver 18 for SQL Server}'
 
+        # Conexión a la base de datos
         self.conn = pyodbc.connect(
             f'DRIVER={self.driver};'
             f'SERVER={self.server};'
@@ -17,6 +18,8 @@ class Database:
             f'PWD={self.password};'
             f'Encrypt=yes;'
         )
+
+        # Cursor para ejecutar consultas
         self.cursor = self.conn.cursor()
 
     def get_libros(self):
@@ -76,21 +79,7 @@ class Database:
         """Crea un usuario nuevo."""
         try:
             self.cursor.execute(
-                """EXEC dbo.CrearUsuarioBiblioteca
-                @nombre_completo = ?,
-                @identificacion = ?,
-                @discapacidad = ?,
-                @provincia = ?,
-                @canton = ?,
-                @distrito = ?,
-                @rango_edad = ?,
-                @sexo = ?,
-                @curso = ?,
-                @anio = ?,
-                @grupo = ?,
-                @telefono = ?,
-                @activo = ?,
-                @comentario = ?""",
+                "EXEC sp_CrearUsuario @nombre_completo = ?, @identificacion = ?, @discapacidad = ?, @provincia = ?, @canton = ?, @distrito = ?, @rango_edad = ?, @sexo = ?, @curso = ?, @anio = ?, @grupo = ?, @telefono = ?, @activo = ?, @comentario = ?",
                 (
                     nombre_completo,
                     identificacion,
@@ -103,9 +92,9 @@ class Database:
                     curso,
                     anio,
                     grupo,
-                    telefono,
+                    telefono if telefono else None,
                     activo,
-                    comentario,
+                    comentario if comentario else None,
                 ),
             )
             self.conn.commit()
@@ -133,24 +122,7 @@ class Database:
         comentario=None
     ):
         self.cursor.execute(
-            """
-            EXEC sp_EditarUsuarioBiblioteca
-                @id_usuario = ?,
-                @nombre_completo = ?,
-                @identificacion = ?,
-                @discapacidad = ?,
-                @provincia = ?,
-                @canton = ?,
-                @distrito = ?,
-                @rango_edad = ?,
-                @sexo = ?,
-                @curso = ?,
-                @anio = ?,
-                @grupo = ?,
-                @telefono = ?,
-                @activo = ?,
-                @comentario = ?
-            """,
+            "EXEC sp_ActualizarUsuario @id_usuario = ?, @nombre_completo = ?, @identificacion = ?, @discapacidad = ?, @provincia = ?, @canton = ?, @distrito = ?, @rango_edad = ?, @sexo = ?, @curso = ?, @anio = ?, @grupo = ?, @telefono = ?, @activo = ?, @comentario = ?",
             (
                 id_usuario,
                 nombre_completo,
@@ -173,7 +145,7 @@ class Database:
         
     def update_solicitud(self, id_solicitud, descripcion, autor, activo):
         self.cursor.execute(
-            "EXEC sp_EditarSolicitud @id_solicitud = ?, @descripcion = ?, @autor = ?, @activo = ?",
+            "EXEC sp_ActualizarSolicitud @id_solicitud = ?, @descripcion = ?, @autor = ?, @activo = ?",
             (
                 id_solicitud,
                 descripcion if descripcion else None,
@@ -185,21 +157,21 @@ class Database:
 
     def eliminar_solicitud(self, id_solicitud: int):
         self.cursor.execute(
-            "EXEC dbo.sp_EliminarSolicitud @id_solicitud = ?",
+            "EXEC sp_EliminarSolicitud @id_solicitud = ?",
             (int(id_solicitud),)
         )
         self.conn.commit()
         
     def eliminar_categoria(self, id_categoria: int):
         self.cursor.execute(
-            "EXEC dbo.sp_EliminarCategoria @id_categoria = ?",
+            "EXEC sp_EliminarCategoria @id_categoria = ?",
             (int(id_categoria),)
         )
         self.conn.commit()
         
     def eliminar_autor(self, id_autor: int):
         self.cursor.execute(
-            "EXEC dbo.sp_EliminarAutor @id_autor = ?",
+            "EXEC sp_EliminarAutor @id_autor = ?",
             (int(id_autor),)
         )
         self.conn.commit()
@@ -235,14 +207,14 @@ class Database:
 
     def update_categoria(self, id_categoria, nombre, descripcion):
         self.cursor.execute(
-            "EXEC sp_EditarCategoria @id_categoria = ?, @nombre = ?, @descripcion = ?",
+            "EXEC sp_ActualizarCategoria @id_categoria = ?, @nombre = ?, @descripcion = ?",
             (id_categoria, nombre, descripcion if descripcion else None)
         )
         self.conn.commit()
 
     def update_autor(self, id_autor, nombre_completo, nacionalidad):
         self.cursor.execute(
-            "EXEC sp_EditarAutor @id_autor = ?, @nombre_completo = ?, @nacionalidad = ?",
+            "EXEC sp_ActualizarAutor @id_autor = ?, @nombre_completo = ?, @nacionalidad = ?",
             (id_autor, nombre_completo, nacionalidad if nacionalidad else None)
         )
         self.conn.commit()
@@ -264,29 +236,22 @@ class Database:
         print("[DB] crear_libro() iniciado")
         print(f"[DB] Parámetros: titulo={titulo}, tipo={tipo}, categoria={id_categoria}")
         
-        sql_query = """EXEC sp_CrearLibro 
-        @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?,
-        @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?,
-        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?"""
-
-        values = [
-            titulo,
-            isbn if isbn else None,
-            anio_publicacion,
-            edicion if edicion else None,
-            tipo,
-            descripcion if descripcion else None,
-            id_categoria,
-            activo,
-            autores_ids_csv,
-            clasificacion_dui,
-            codigo_barras
-        ]
-
-        print(f"[DB] SQL: {sql_query}")
-        print(f"[DB] Values: {values}")
-        
-        self.cursor.execute(sql_query, values)
+        self.cursor.execute(
+            "EXEC sp_CrearLibro @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @activo = ?, @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?",
+            (
+                titulo,
+                isbn if isbn else None,
+                anio_publicacion,
+                edicion if edicion else None,
+                tipo,
+                descripcion if descripcion else None,
+                id_categoria,
+                activo,
+                autores_ids_csv,
+                clasificacion_dui,
+                codigo_barras
+            )
+        )
         self.conn.commit()
         print("[DB] Libro creado y guardado exitosamente")
 
@@ -295,26 +260,15 @@ class Database:
     #   PDFs (DIGITAL)
     # =========================
     def upsert_libro_pdf(self, id_libro: int, nombre_archivo: str, contenido: bytes):
-        cur = self.conn.cursor()
-        cur.execute(
-            "EXEC dbo.sp_UpsertLibroPDF @id_libro = ?, @nombre_archivo = ?, @contenido = ?, @content_type = ?",
-            (id_libro, nombre_archivo, pyodbc.Binary(contenido), "application/pdf"),
+        self.cursor.execute(
+            "EXEC sp_UpsertLibroPDF @id_libro = ?, @nombre_archivo = ?, @contenido = ?",
+            (id_libro, nombre_archivo, contenido)
         )
-
-        try:
-            while cur.nextset():
-                pass
-        except Exception:
-            pass
-
         self.conn.commit()
-        cur.close()
 
     def get_libro_pdf(self, id_libro: int):
-        cur = self.conn.cursor()
-        cur.execute("EXEC dbo.sp_GetLibroPDF @id_libro = ?", (id_libro,))
-        row = cur.fetchone()
-        cur.close()
+        self.cursor.execute("EXEC sp_GetLibroPDF @id_libro = ?", (id_libro,))
+        row = self.cursor.fetchone()
 
         if not row:
             return None
@@ -328,10 +282,10 @@ class Database:
 
     def has_libro_pdf(self, id_libro: int) -> bool:
         cur = self.conn.cursor()
-        cur.execute("EXEC dbo.sp_HasLibroPDF @id_libro = ?", (id_libro,))
+        cur.execute("SELECT 1 FROM libros_pdf WHERE id_libro = %s LIMIT 1", (id_libro,))
         row = cur.fetchone()
         cur.close()
-        return bool(row[0]) if row else False
+        return bool(row)
 
     # =========================
     # LIBROS - Detalles y Desactivar
@@ -339,7 +293,7 @@ class Database:
     def get_libro_detalle(self, id_libro: int):
         try:
             cur = self.conn.cursor()
-            cur.execute("EXEC dbo.sp_ObtenerDetalleLibro @id_libro = ?", (id_libro,))
+            cur.execute("SELECT * FROM libros WHERE id_libro = %s", (id_libro,))
             row = cur.fetchone()
 
             if row:
@@ -386,39 +340,28 @@ class Database:
     clasificacion_dui=None,
     codigo_barras=None,   
 ):
-         param_str = """
-        @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?,
-        @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?,
-        @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?
-    """
-
-         values = [
-        id_libro,
-        titulo,
-        isbn,
-        anio_publicacion,
-        edicion,
-        tipo,
-        descripcion,
-        id_categoria,
-        autores_ids_csv,
-        clasificacion_dui,
-        codigo_barras if codigo_barras else None,  # ✅ NUEVO
-    ]
-
-         self.cursor.execute(f"EXEC sp_EditarLibro {param_str}", values)
+         self.cursor.execute(
+             "EXEC sp_ActualizarLibro @id_libro = ?, @titulo = ?, @isbn = ?, @anio_publicacion = ?, @edicion = ?, @tipo = ?, @descripcion = ?, @id_categoria = ?, @autores_ids_csv = ?, @clasificacion_dui = ?, @codigo_barras = ?",
+             (
+                 id_libro,
+                 titulo,
+                 isbn if isbn else None,
+                 anio_publicacion,
+                 edicion if edicion else None,
+                 tipo,
+                 descripcion if descripcion else None,
+                 id_categoria,
+                 autores_ids_csv,
+                 clasificacion_dui,
+                 codigo_barras
+             )
+         )
          self.conn.commit()
 
     def get_autores_libro(self, id_libro: int):
         try:
-            cur = self.conn.cursor()
-            cur.execute("""
-                SELECT STRING_AGG(CAST(id_autor AS VARCHAR), ',') as autores_ids
-                FROM Libro_Autor
-                WHERE id_libro = ?
-            """, (id_libro,))
-            row = cur.fetchone()
-            cur.close()
+            self.cursor.execute("EXEC sp_GetAutoresLibro @id_libro = ?", (id_libro,))
+            row = self.cursor.fetchone()
             
             if row and row[0]:
                 return row[0]
@@ -430,44 +373,26 @@ class Database:
     # Toggle Activo/Inactivo
     # =========================
     def set_libro_activo(self, id_libro: int, activo: int):
-        cur = self.conn.cursor()
-        cur.execute(
-            "EXEC dbo.sp_SetLibroActivo @id_libro = ?, @activo = ?",
+        self.cursor.execute(
+            "EXEC sp_SetLibroActivo @id_libro = ?, @activo = ?",
             (id_libro, int(activo))
         )
-
-        try:
-            while cur.nextset():
-                pass
-        except Exception:
-            pass
-
         self.conn.commit()
-        cur.close()
         
         
     def set_usuario_activo(self, id_usuario: int, activo: int):
-        cur = self.conn.cursor()
-        cur.execute(
-            "EXEC dbo.sp_SetUsuarioActivo @id_usuario = ?, @activo = ?",
+        self.cursor.execute(
+            "EXEC sp_SetUsuarioActivo @id_usuario = ?, @activo = ?",
             (id_usuario, int(activo))
         )
-
-        try:
-            while cur.nextset():
-                pass
-        except Exception:
-            pass
-
         self.conn.commit()
-        cur.close()
 
     # =========================
     # CONTACTOS
     # =========================
     def get_contactos(self):
         cur = self.conn.cursor()
-        cur.execute("EXEC dbo.sp_VerContactos")
+        cur.execute("SELECT * FROM contactos")
         columnas = [col[0] for col in cur.description]
         data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
         cur.close()
@@ -506,94 +431,51 @@ class Database:
 
     def eliminar_contacto(self, id_contacto: int):
         self.cursor.execute(
-            "EXEC dbo.sp_EliminarContacto @id_contacto = ?",
+            "EXEC sp_EliminarContacto @id_contacto = ?",
             (int(id_contacto),)
         )
         self.conn.commit()
-
     # =========================
     # NOTIFICACIONES - Reservas próximas a vencer
     # =========================
     def get_reservas_proximas_vencer(self, dias_anticipacion: int = 3):
         """Obtiene las reservas que están próximas a su fecha de devolución"""
-        cur = self.conn.cursor()
-        try:
-            # Intentar usar un stored procedure si existe
-            cur.execute(
-                "EXEC dbo.sp_ObtenerReservasProximasVencer @dias = ?",
-                (dias_anticipacion,)
-            )
-        except Exception:
-            # Si no existe el SP, usar query directa
-            cur.execute("""
-                SELECT 
-                    r.id_reserva,
-                    l.titulo as libro_titulo,
-                    u.cedula as cedula_usuario,
-                    u.nombre as nombre_usuario,
-                    r.fecha_prestamo,
-                    r.fecha_devolucion,
-                    r.estado,
-                    DATEDIFF(day, GETDATE(), r.fecha_devolucion) as dias_restantes
-                FROM Reservas r
-                INNER JOIN Libros l ON r.id_libro = l.id_libro
-                INNER JOIN Usuarios u ON r.id_usuario = u.id_usuario
-                WHERE r.estado = 'PRESTADO'
-                    AND r.fecha_devolucion IS NOT NULL
-                    AND DATEDIFF(day, GETDATE(), r.fecha_devolucion) <= ?
-                    AND DATEDIFF(day, GETDATE(), r.fecha_devolucion) >= 0
-                ORDER BY r.fecha_devolucion ASC
-            """, (dias_anticipacion,))
+        self.cursor.execute("EXEC sp_GetReservasProximasVencer @dias_anticipacion = ?", (dias_anticipacion,))
         
-        columnas = [col[0] for col in cur.description]
-        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-        cur.close()
+        columnas = [col[0] for col in self.cursor.description]
+        data = [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
         return data
 
     def actualizar_fecha_devolucion(self, id_reserva: int, nueva_fecha: str):
         """Actualiza la fecha de devolución de una reserva"""
-        cur = self.conn.cursor()
-        try:
-            # Intentar usar un stored procedure si existe
-            cur.execute(
-                "EXEC dbo.sp_ActualizarFechaDevolucion @id_reserva = ?, @nueva_fecha = ?",
-                (id_reserva, nueva_fecha)
-            )
-        except Exception:
-            # Si no existe el SP, usar query directa
-            cur.execute("""
-                UPDATE Reservas 
-                SET fecha_devolucion = ? 
-                WHERE id_reserva = ?
-            """, (nueva_fecha, id_reserva))
-        
+        self.cursor.execute(
+            "EXEC sp_ActualizarFechaDevolucion @id_reserva = ?, @nueva_fecha = ?",
+            (id_reserva, nueva_fecha)
+        )
         self.conn.commit()
-        cur.close()
 
     def get_reservas_vencidas(self):
         """Obtiene las reservas que ya pasaron su fecha de devolución"""
         cur = self.conn.cursor()
         try:
-            cur.execute("EXEC dbo.sp_ObtenerReservasVencidas")
-        except Exception:
             cur.execute("""
                 SELECT 
-                    r.id_reserva,
+                    r.id_prestamo as id_reserva,
                     l.titulo as libro_titulo,
-                    u.cedula as cedula_usuario,
-                    u.nombre as nombre_usuario,
+                    u.identificacion as cedula_usuario,
                     r.fecha_prestamo,
-                    r.fecha_devolucion,
+                    r.fecha_devolucion_esperada as fecha_devolucion,
                     r.estado,
-                    DATEDIFF(day, r.fecha_devolucion, GETDATE()) as dias_vencidos
-                FROM Reservas r
-                INNER JOIN Libros l ON r.id_libro = l.id_libro
-                INNER JOIN Usuarios u ON r.id_usuario = u.id_usuario
+                    (CURRENT_DATE - r.fecha_devolucion_esperada::date) as dias_vencidos
                 WHERE r.estado IN ('PRESTADO', 'NO DEVUELTO')
-                    AND r.fecha_devolucion IS NOT NULL
-                    AND r.fecha_devolucion < CAST(GETDATE() AS DATE)
-                ORDER BY r.fecha_devolucion ASC
+                    AND r.fecha_devolucion_esperada IS NOT NULL
+                    AND r.fecha_devolucion_esperada::date < CURRENT_DATE
             """)
+        
+        except Exception as e:
+            print(f"Error en get_reservas_vencidas: {e}")
+            cur.close()
+            return []
         
         columnas = [col[0] for col in cur.description]
         data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
@@ -607,293 +489,81 @@ class Database:
     def get_prestamos(self):
         cur = self.conn.cursor()
         try:
-            cur.execute("EXEC dbo.sp_VerPrestamos")
-            columnas = [col[0] for col in cur.description]
-            data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-            cur.close()
-            return data
-        except Exception as e:
-            try:
-                cur.execute("""
-                    SELECT 
-                        p.id_prestamo,
-                        p.id_libro,
-                        l.titulo as libro_titulo,
-                        u.identificacion as identificacion_usuario,
-                        u.nombre_completo as nombre_usuario,
-                        p.fecha_prestamo,
-                        p.fecha_devolucion_esperada,
-                        p.fecha_devolucion_real,
-                        p.estado,
-                        p.observaciones
-                    FROM Prestamos p
-                    INNER JOIN Libro l ON p.id_libro = l.id_libro
-                    LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
-                    ORDER BY p.fecha_prestamo DESC
-                """)
-                columnas = [col[0] for col in cur.description]
-                data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-                cur.close()
-                return data
-            except Exception as ex:
-                import traceback
-                print(f"Error al obtener préstamos: {ex}")
-                print(traceback.format_exc())
-                try:
-                    cur.close()
-                except:
-                    pass
-                return []
-
-    def crear_prestamo(self, id_libro, identificacion, fecha_devolucion_esperada):
-        """Crea un nuevo préstamo"""
-        cur = self.conn.cursor()
-        try:
-            # Obtener id_usuario desde la identificación
-            cur.execute("SELECT id_usuario FROM Usuarios WHERE identificacion = ?", (identificacion,))
-            resultado = cur.fetchone()
-            
-            if not resultado:
-                cur.close()
-                raise Exception(f"No se encontró un usuario con la identificación {identificacion}")
-            
-            id_usuario = resultado[0]
-            
-            # Intentar con stored procedure
-            try:
-                cur.execute(
-                    "EXEC dbo.sp_CrearPrestamo @id_libro = ?, @id_usuario = ?, @fecha_devolucion_esperada = ?",
-                    (id_libro, id_usuario, fecha_devolucion_esperada)
-                )
-            except Exception:
-                # Si el SP no existe, inserción directa
-                cur.execute("""
-                    INSERT INTO Prestamos (id_libro, id_usuario, fecha_prestamo, fecha_devolucion_esperada, estado)
-                    VALUES (?, ?, GETDATE(), ?, 'PRESTADO')
-                """, (id_libro, id_usuario, fecha_devolucion_esperada))
-            
-            self.conn.commit()
-            cur.close()
-            
-        except Exception as ex:
-            self.conn.rollback()
-            try:
-                cur.close()
-            except:
-                pass
-            import traceback
-            print(f"Error al crear préstamo: {ex}")
-            print(traceback.format_exc())
-            raise Exception(f"Error al crear préstamo: {str(ex)}")
-
-    def actualizar_devolucion_prestamo(self, id_prestamo, observaciones=None):
-        """Marca un préstamo como devuelto"""
-        cur = self.conn.cursor()
-        try:
-            cur.execute(
-                "EXEC dbo.sp_RegistrarDevolucion @id_prestamo = ?, @observaciones = ?",
-                (id_prestamo, observaciones)
-            )
-            self.conn.commit()
-        except Exception:
-            try:
-                cur.execute("""
-                    UPDATE Prestamos 
-                    SET estado = 'DEVUELTO',
-                        fecha_devolucion_real = GETDATE(),
-                        observaciones = ?
-                    WHERE id_prestamo = ?
-                """, (observaciones, id_prestamo))
-                self.conn.commit()
-            except Exception as ex:
-                raise Exception(f"Error al actualizar devolución: {str(ex)}")
-        finally:
-            cur.close()
-
-    def actualizar_fecha_devolucion_esperada(self, id_prestamo: int, nueva_fecha: str):
-        """Actualiza la fecha de devolución esperada de un préstamo (renovación)."""
-        cur = self.conn.cursor()
-        try:
-            # Intentar con stored procedure si existe
-            cur.execute(
-                "EXEC dbo.sp_ActualizarFechaDevolucionEsperada @id_prestamo = ?, @nueva_fecha = ?",
-                (id_prestamo, nueva_fecha)
-            )
-            self.conn.commit()
-        except Exception:
-            try:
-                cur.execute(
-                    """
-                    UPDATE Prestamos
-                    SET fecha_devolucion_esperada = CAST(? AS DATE),
-                        estado = CASE WHEN fecha_devolucion_real IS NULL THEN 'PRESTADO' ELSE estado END
-                    WHERE id_prestamo = ?
-                    """,
-                    (nueva_fecha, id_prestamo)
-                )
-                self.conn.commit()
-            except Exception as ex:
-                raise Exception(f"Error al actualizar fecha esperada: {str(ex)}")
-        finally:
-            cur.close()
-
-    def marcar_no_devuelto(self, id_prestamo: int, observaciones: str = None):
-        """Marca explícitamente un préstamo como NO DEVUELTO."""
-        cur = self.conn.cursor()
-        try:
-            # Intentar con SP si existe
-            cur.execute(
-                "EXEC dbo.sp_MarcarNoDevuelto @id_prestamo = ?, @observaciones = ?",
-                (id_prestamo, observaciones)
-            )
-            self.conn.commit()
-        except Exception:
-            try:
-                cur.execute(
-                    """
-                    UPDATE Prestamos
-                    SET estado = 'NO DEVUELTO',
-                        observaciones = COALESCE(?, observaciones)
-                    WHERE id_prestamo = ?
-                    """,
-                    (observaciones, id_prestamo)
-                )
-                self.conn.commit()
-            except Exception as ex:
-                raise Exception(f"Error al marcar NO DEVUELTO: {str(ex)}")
-        finally:
-            cur.close()
-
-    def eliminar_prestamo(self, id_prestamo):
-        """Elimina un préstamo"""
-        cur = self.conn.cursor()
-        try:
-            cur.execute("EXEC dbo.sp_EliminarPrestamo @id_prestamo = ?", (id_prestamo,))
-            self.conn.commit()
-        except Exception:
-            try:
-                cur.execute("DELETE FROM Prestamos WHERE id_prestamo = ?", (id_prestamo,))
-                self.conn.commit()
-            except Exception as ex:
-                raise Exception(f"Error al eliminar préstamo: {str(ex)}")
-        finally:
-            cur.close()
-
-    def get_historial_prestamos_usuario(self, identificacion):
-        """Obtiene el historial de préstamos de un usuario por identificación"""
-        cur = self.conn.cursor()
-        
-        print(f"[DEBUG] Buscando historial para identificación: '{identificacion}'")
-        
-        try:
-            # Buscar préstamos directamente por identificación (maneja duplicados)
             cur.execute("""
                 SELECT 
                     p.id_prestamo,
                     p.id_libro,
                     l.titulo as libro_titulo,
-                    p.id_usuario,
-                    u.nombre_completo as nombre_usuario,
                     u.identificacion as identificacion_usuario,
-                    p.fecha_prestamo,
                     p.fecha_devolucion_esperada,
                     p.fecha_devolucion_real,
-                    p.estado,
-                    p.observaciones,
-                    CASE 
-                        WHEN p.fecha_devolucion_real IS NOT NULL THEN 'DEVUELTO'
-                        WHEN p.fecha_devolucion_esperada < CAST(GETDATE() AS DATE) THEN 'NO DEVUELTO'
-                        ELSE 'PRESTADO'
-                    END as estado_calculado,
-                    DATEDIFF(day, GETDATE(), p.fecha_devolucion_esperada) as dias_restantes
-                FROM Prestamos p
-                INNER JOIN Libro l ON p.id_libro = l.id_libro
-                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
-                WHERE u.identificacion = ?
-                ORDER BY p.fecha_prestamo DESC
-            """, (identificacion,))
+                    p.observaciones
+            """)
             columnas = [col[0] for col in cur.description]
             data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-            print(f"[DEBUG] Query retornó {len(data)} registros para identificación '{identificacion}'")
+            cur.close()
             return data
         except Exception as ex:
             import traceback
-            print(f"[DEBUG] Error al obtener historial: {ex}")
+            print(f"Error al obtener préstamos: {ex}")
             print(traceback.format_exc())
+            try:
+                cur.close()
+            except:
+                pass
             return []
-        finally:
-            cur.close()
 
+    def crear_prestamo(self, id_libro, identificacion, fecha_devolucion_esperada):
+        """Crea un nuevo préstamo"""
+        self.cursor.execute(
+            "EXEC sp_CrearPrestamo @id_libro = ?, @identificacion = ?, @fecha_devolucion_esperada = ?",
+            (id_libro, identificacion, fecha_devolucion_esperada)
+        )
+        self.conn.commit()
+
+    def actualizar_devolucion_prestamo(self, id_prestamo, observaciones=None):
+        """Marca un préstamo como devuelto"""
+        self.cursor.execute(
+            "EXEC sp_ActualizarDevolucionPrestamo @id_prestamo = ?, @observaciones = ?",
+            (id_prestamo, observaciones)
+        )
+        self.conn.commit()
+
+    def actualizar_fecha_devolucion_esperada(self, id_prestamo: int, nueva_fecha: str):
+        """Actualiza la fecha de devolución esperada de un préstamo (renovación)."""
+        self.cursor.execute(
+            "EXEC sp_ActualizarFechaDevolucionEsperada @id_prestamo = ?, @nueva_fecha = ?",
+            (id_prestamo, nueva_fecha)
+        )
+        self.conn.commit()
+
+    def marcar_no_devuelto(self, id_prestamo: int, observaciones: str = None):
+        """Marca explícitamente un préstamo como NO DEVUELTO."""
+        self.cursor.execute(
+            "EXEC sp_MarcarNoDevuelto @id_prestamo = ?, @observaciones = ?",
+            (id_prestamo, observaciones)
+        )
+        self.conn.commit()
+
+    def get_historial_prestamos_usuario(self, identificacion):
+        """Obtiene el historial de préstamos de un usuario por identificación"""
+        self.cursor.execute("EXEC sp_GetHistorialPrestamosUsuario @identificacion = ?", (identificacion,))
+        columnas = [col[0] for col in self.cursor.description]
+        data = [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
+        return data
     # =========================
     # NOTIFICACIONES - Préstamos
     # =========================
     def get_prestamos_proximos_vencer(self, dias_anticipacion: int = 3):
-        """Obtiene los préstamos próximos a vencer en los próximos 'dias_anticipacion' días."""
-        cur = self.conn.cursor()
-        try:
-            # Intentar usar un stored procedure si existe
-            cur.execute(
-                "EXEC dbo.sp_ObtenerPrestamosProximosVencer @dias = ?",
-                (dias_anticipacion,)
-            )
-        except Exception:
-            # Fallback a consulta directa
-            cur.execute("""
-                SELECT 
-                    p.id_prestamo,
-                    l.titulo as libro_titulo,
-                    u.identificacion as identificacion_usuario,
-                    u.nombre_completo as nombre_usuario,
-                    p.fecha_prestamo,
-                    p.fecha_devolucion_esperada,
-                    p.estado,
-                    DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) as dias_restantes
-                FROM Prestamos p
-                INNER JOIN Libro l ON p.id_libro = l.id_libro
-                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
-                WHERE p.estado = 'PRESTADO'
-                    AND p.fecha_devolucion_real IS NULL
-                    AND p.fecha_devolucion_esperada IS NOT NULL
-                    AND DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) <= ?
-                    AND DATEDIFF(day, CAST(GETDATE() AS DATE), p.fecha_devolucion_esperada) >= 0
-                ORDER BY p.fecha_devolucion_esperada ASC
-            """, (dias_anticipacion,))
-
-        columnas = [col[0] for col in cur.description]
-        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-        cur.close()
+        """"Obtiene los préstamos próximos a vencer en los próximos 'dias_anticipacion' días."""
+        self.cursor.execute("EXEC sp_GetPrestamosProximosVencer @dias = ?", (dias_anticipacion,))
+        columnas = [col[0] for col in self.cursor.description]
+        data = [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
         return data
 
     def get_prestamos_vencidos(self):
-        """Obtiene los préstamos que ya vencieron y aún no se devolvieron."""
-        cur = self.conn.cursor()
-        try:
-            cur.execute("EXEC dbo.sp_ObtenerPrestamosVencidos")
-        except Exception:
-            cur.execute("""
-                SELECT 
-                    p.id_prestamo,
-                    l.titulo as libro_titulo,
-                    u.identificacion as identificacion_usuario,
-                    u.nombre_completo as nombre_usuario,
-                    p.fecha_prestamo,
-                    p.fecha_devolucion_esperada,
-                    p.estado,
-                    DATEDIFF(day, p.fecha_devolucion_esperada, CAST(GETDATE() AS DATE)) as dias_vencidos
-                FROM Prestamos p
-                INNER JOIN Libro l ON p.id_libro = l.id_libro
-                LEFT JOIN Usuarios u ON p.id_usuario = u.id_usuario
-                WHERE (p.estado IN ('PRESTADO', 'NO DEVUELTO'))
-                    AND p.fecha_devolucion_real IS NULL
-                    AND p.fecha_devolucion_esperada IS NOT NULL
-                    AND p.fecha_devolucion_esperada < CAST(GETDATE() AS DATE)
-                ORDER BY p.fecha_devolucion_esperada ASC
-            """)
-
-        columnas = [col[0] for col in cur.description]
-        data = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
-        cur.close()
+        """"Obtiene los préstamos que ya vencieron y aún no se devolvieron."""
+        self.cursor.execute("EXEC sp_GetPrestamosVencidos")
+        columnas = [col[0] for col in self.cursor.description]
+        data = [dict(zip(columnas, fila)) for fila in self.cursor.fetchall()]
         return data
-
-    
-    
